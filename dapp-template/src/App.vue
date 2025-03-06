@@ -25,52 +25,65 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { MetamaskConnectClient } from '@gala-chain/connect'
+import { BrowserConnectClient } from '@gala-chain/connect'
 import Balance from './components/Balance.vue'
 import BurnGala from './components/BurnGala.vue'
 import TransferGala from './components/TransferGala.vue'
 import InfoPage from './components/InfoPage.vue'
 
-const metamaskClient = new MetamaskConnectClient()
-const isConnected = ref(false)
-const walletAddress = ref('')
-const showInfo = ref(false)
+const metamaskSupport = ref(true);
+let metamaskClient: BrowserConnectClient;
+try {
+  metamaskClient = new BrowserConnectClient();
+} catch (e) {
+  metamaskSupport.value = false;
+}
+
+const isConnected = ref(false);
+const walletAddress = ref("");
+const showInfo = ref(false);
 
 async function connectWallet() {
+  if (!metamaskSupport.value) {
+    return;
+  }
+
   try {
-    await metamaskClient.connect()
-    const address = metamaskClient.getWalletAddress
-    walletAddress.value = address.startsWith('0x') ? "eth|" + address.slice(2) : address
-    
+    await metamaskClient.connect();
+    walletAddress.value = metamaskClient.galaChainAddress;
+
     // Check registration
     try {
-      await checkRegistration()
+      await checkRegistration();
     } catch {
-      await registerUser()
+      await registerUser();
     }
-    
-    isConnected.value = true
+
+    isConnected.value = true;
   } catch (err) {
-    console.error('Error connecting wallet:', err)
+    console.error("Error connecting wallet:", err);
   }
 }
 
 async function checkRegistration() {
-  const response = await fetch(`${import.meta.env.VITE_GATEWAY_API}/GetPublicKey`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user: walletAddress.value })
-  })
-  if (!response.ok) throw new Error('User not registered')
+  const response = await fetch(
+    `${import.meta.env.VITE_BURN_GATEWAY_PUBLIC_KEY_API}/GetPublicKey`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user: walletAddress.value }),
+    },
+  );
+  if (!response.ok) throw new Error("User not registered");
 }
 
 async function registerUser() {
-  const publicKey = await metamaskClient.getPublicKey()
+  const publicKey = await metamaskClient.getPublicKey();
   await fetch(`${import.meta.env.VITE_GALASWAP_API}/CreateHeadlessWallet`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ publicKey: publicKey.publicKey })
-  })
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ publicKey: publicKey.publicKey }),
+  });
 }
 </script>
 

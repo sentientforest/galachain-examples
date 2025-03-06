@@ -38,11 +38,11 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { MetamaskConnectClient } from '@gala-chain/connect'
+import type { BrowserConnectClient } from '@gala-chain/connect'
 
 const props = defineProps<{
   walletAddress: string
-  metamaskClient: MetamaskConnectClient
+  metamaskClient: BrowserConnectClient
 }>()
 
 const recipientAddress = ref('')
