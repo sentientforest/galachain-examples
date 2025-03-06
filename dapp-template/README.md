@@ -2,6 +2,8 @@
 
 A lightweight application that allows users to connect their wallet, check their GALA balance, and burn GALA tokens on mainnet.
 
+This application includes a Vue.js based single page application (SPA) with client-side rendering. It communicates directly with the GalaChain Mainnet API Gateway, is simple to get up and running, and can be deployed as a static site.   
+
 ## Prerequisites
 
 - Node.js (v14 or later)

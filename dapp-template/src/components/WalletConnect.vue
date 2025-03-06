@@ -10,10 +10,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { MetamaskConnectClient } from '@gala-chain/connect'
-import axios from 'axios'
+import { BrowserConnectClient } from '@gala-chain/connect'
 
-const metamaskClient = new MetamaskConnectClient();
+const metamaskClient = new BrowserConnectClient();
 const isConnected = ref(false)
 const walletAddress = ref('')
 const isRegistered = ref(false)
@@ -30,12 +29,10 @@ const truncatedAddress = computed(() => {
 const connectWallet = async () => {
   try {
     await metamaskClient.connect()
-    let address = metamaskClient.getWalletAddress
-    if (address.startsWith('0x')) {
-      address = "eth|" + address.slice(2)
-    }
-    walletAddress.value = address
-    isConnected.value = true
+    const address = metamaskClient.galaChainAddress;
+
+    walletAddress.value = address;
+    isConnected.value = true;
     await checkRegistration()
   } catch (err) {
     console.error('Error connecting wallet:', err)
@@ -44,34 +41,58 @@ const connectWallet = async () => {
 
 const checkRegistration = async () => {
   try {
-    const response = await axios.post(`${import.meta.env.VITE_GALASWAP_API}/GetPublicKey`, {
-      user: walletAddress.value
-    })
-    isRegistered.value = !!response.data.Data
+    const dto = {
+      user: walletAddress.value,
+    };
+
+    const url = `${import.meta.env.VITE_GALASWAP_API}/GetPublicKey`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dto),
+    });
+
+    if (!response.ok) {
+      console.log(response.status);
+      throw new Error(`Failed to check user public key: ${url}`);
+    }
+    isRegistered.value = !!(await response.json()).Data;
   } catch (err) {
     // not really an error, just means the user is not registered yet
-    console.log('User is not registered', err)
-    isRegistered.value = false
+    console.log("User is not registered", err);
+    isRegistered.value = false;
   }
 }
 
 const registerUser = async () => {
   try {
-    const publicKey = await metamaskClient.getPublicKey()
+    const publicKey = await metamaskClient.getPublicKey();
 
     const registerDto = {
-      publicKey: publicKey.publicKey
+      publicKey: publicKey.publicKey,
+    };
+
+    const response = await fetch(
+      `${import.meta.env.VITE_GALASWAP_API}/CreateHeadlessWallet`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(registerDto),
+      },
+    );
+
+    if (!response.ok) {
+      console.log(response.status);
+      throw new Error(`Failed to register user`);
     }
 
-    const response =await axios.post(`${import.meta.env.VITE_GALASWAP_API}/CreateHeadlessWallet`, registerDto)
+    isRegistered.value = true;
 
-    isRegistered.value = true
-
-    emit('registrationComplete')
+    emit("registrationComplete");
   } catch (err) {
-    console.error('Error registering user:', err)
+    console.error("Error registering user:", err);
   }
-}
+};
 
 defineExpose({ isConnected, metamaskClient, walletAddress, isRegistered })
 </script>

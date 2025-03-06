@@ -11,10 +11,16 @@
     "deploy": "sh deploy.sh"
   },
   "dependencies": {
-    "@gala-chain/connect": "^1.4.2",
+    "@gala-chain/api": "2.0.3",
+    "@gala-chain/connect": "2.0.3",
     "vue": "^3.3.4",
     "buffer": "^6.0.3",
     "vite-plugin-node-polyfills": "^0.9.0"
+  },
+  "peerDependencies": {
+    "class-transformer": "0.5.1",
+    "class-validator": "^0.14.0",
+    "class-validator-jsonschema": "^5.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.2.3",
