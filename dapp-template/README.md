@@ -55,7 +55,7 @@ This application includes a Vue.js based single page application (SPA) with clie
 
 ## Usage
 
-1. Open your browser and navigate to `http://localhost:3000`
+1. Open your browser and navigate to `http://localhost:3001`
 2. Click "Connect Wallet" to connect your MetaMask wallet
 3. Once connected, you'll see your GALA balance
 4. Enter the amount of GALA you want to burn
