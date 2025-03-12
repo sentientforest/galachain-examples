@@ -3,9 +3,8 @@ import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
   plugins: [vue()],
-  root: './src/client',
   build: {
-    outDir: '../../dist/client'
+    outDir: 'dist'
   },
   server: {
     proxy: {

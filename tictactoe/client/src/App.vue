@@ -41,7 +41,7 @@
 import { ref, computed } from 'vue';
 import { Client } from 'boardgame.io/client';
 import { SocketIO } from 'boardgame.io/multiplayer';
-import { TicTacToe, TicTacToeState } from '../server/game';
+import { TicTacToe, TicTacToeState } from './game';
 
 interface GameOver {
   winner: string | null;
