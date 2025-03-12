@@ -36,6 +36,12 @@ describe("API snapshots", () => {
       chaincode: "basic-product",
       contract: "PublicKeyContract",
       api: commonContractAPI
+    },
+    tictac: {
+      channel: "product-channel",
+      chaincode: "basic-product",
+      contract: "TicTacContract",
+      api: commonContractAPI
     }
   };
 

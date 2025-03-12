@@ -3,14 +3,10 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  */
-import {
-  ChainKey,
-  ChainObject,
-  DefaultError,
-  NotFoundError
-} from "@gala-chain/api";
+import { ChainKey, ChainObject, DefaultError, NotFoundError } from "@gala-chain/api";
 import { Exclude } from "class-transformer";
 import { IsArray, IsString } from "class-validator";
+
 import { GameStatus, PlayerSymbol } from "./types";
 
 export class TicTacGame extends ChainObject {
@@ -21,31 +17,24 @@ export class TicTacGame extends ChainObject {
   @IsString()
   public readonly gameId: string;
 
-  @ChainKey({ position: 1 })
   @IsString()
   public readonly playerX: string;
 
-  @ChainKey({ position: 2 })
   @IsString()
   public readonly playerO: string;
 
   @IsArray()
-  public readonly board: (PlayerSymbol | null)[];
+  public board: (PlayerSymbol | null)[];
 
-  public readonly status: GameStatus;
+  public status: GameStatus;
 
-  public readonly currentPlayer: PlayerSymbol;
+  public currentPlayer: PlayerSymbol;
 
   public readonly createdAt: number;
 
-  public readonly lastMoveAt: number;
+  public lastMoveAt: number;
 
-  constructor(
-    gameId: string,
-    playerX: string,
-    playerO: string,
-    createdAt: number
-  ) {
+  constructor(gameId: string, playerX: string, playerO: string, createdAt: number) {
     super();
     this.gameId = gameId;
     this.playerX = playerX;
@@ -59,22 +48,23 @@ export class TicTacGame extends ChainObject {
 
   private checkWinner(): GameStatus {
     const lines = [
-      [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
-      [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
-      [0, 4, 8], [2, 4, 6]             // diagonals
+      [0, 1, 2],
+      [3, 4, 5],
+      [6, 7, 8], // rows
+      [0, 3, 6],
+      [1, 4, 7],
+      [2, 5, 8], // columns
+      [0, 4, 8],
+      [2, 4, 6] // diagonals
     ];
 
     for (const [a, b, c] of lines) {
-      if (
-        this.board[a] &&
-        this.board[a] === this.board[b] &&
-        this.board[a] === this.board[c]
-      ) {
+      if (this.board[a] && this.board[a] === this.board[b] && this.board[a] === this.board[c]) {
         return this.board[a] === PlayerSymbol.X ? GameStatus.X_WON : GameStatus.O_WON;
       }
     }
 
-    if (this.board.every(cell => cell !== null)) {
+    if (this.board.every((cell) => cell !== null)) {
       return GameStatus.DRAW;
     }
 
@@ -99,7 +89,7 @@ export class TicTacGame extends ChainObject {
 
     this.board[position] = this.currentPlayer;
     this.lastMoveAt = timestamp;
-    
+
     // Update game status
     const newStatus = this.checkWinner();
     if (newStatus !== GameStatus.IN_PROGRESS) {

@@ -5,15 +5,8 @@
  */
 import { ChainCallDTO, SubmitCallDTO } from "@gala-chain/api";
 import { Type } from "class-transformer";
-import {
-  IsArray,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-  ValidateNested
-} from "class-validator";
+import { IsArray, IsNumber, IsOptional, IsString, Max, Min, ValidateNested } from "class-validator";
+
 import { TicTacGame } from "./TicTacGame";
 
 export class CreateGameDto extends SubmitCallDTO {

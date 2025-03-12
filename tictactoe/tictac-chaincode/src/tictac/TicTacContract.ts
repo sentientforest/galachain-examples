@@ -4,9 +4,11 @@
  * you may not use this file except in compliance with the License.
  */
 import { Evaluate, GalaChainContext, GalaContract, Submit } from "@gala-chain/chaincode";
+
 import { version } from "../../package.json";
-import { CreateGameDto, FetchGamesDto, MakeMoveDto, PagedGamesDto } from "./dtos";
+import { TicTacGame } from "./TicTacGame";
 import { createGame } from "./createGame";
+import { CreateGameDto, FetchGamesDto, MakeMoveDto, PagedGamesDto } from "./dtos";
 import { fetchGames } from "./fetchGames";
 import { makeMove } from "./makeMove";
 
@@ -16,17 +18,19 @@ export class TicTacContract extends GalaContract {
   }
 
   @Submit({
-    in: CreateGameDto
+    in: CreateGameDto,
+    out: TicTacGame
   })
-  public async CreateGame(ctx: GalaChainContext, dto: CreateGameDto): Promise<void> {
-    await createGame(ctx, dto);
+  public async CreateGame(ctx: GalaChainContext, dto: CreateGameDto): Promise<TicTacGame> {
+    return createGame(ctx, dto);
   }
 
   @Submit({
-    in: MakeMoveDto
+    in: MakeMoveDto,
+    out: TicTacGame
   })
-  public async MakeMove(ctx: GalaChainContext, dto: MakeMoveDto): Promise<void> {
-    await makeMove(ctx, dto);
+  public async MakeMove(ctx: GalaChainContext, dto: MakeMoveDto): Promise<TicTacGame> {
+    return makeMove(ctx, dto);
   }
 
   @Evaluate({

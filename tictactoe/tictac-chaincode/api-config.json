@@ -19,6 +19,11 @@
           "pathFragment": "PublicKeyContract",
           "chaincodeName": "basic-product",
           "contractName": "PublicKeyContract"
+        },
+        {
+          "pathFragment": "TicTacContract",
+          "chaincodeName": "basic-product",
+          "contractName": "TicTacContract"
         }
       ]
     }
