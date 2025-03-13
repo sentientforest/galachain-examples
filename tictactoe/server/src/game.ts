@@ -1,17 +1,17 @@
 import { Game, Move } from 'boardgame.io';
 
-export interface TicTacToeState {
+export interface TicTacContractState {
   cells: (string | null)[];
   winner: string | null;
 }
 
-const makeMove: Move<TicTacToeState> = ({ G, ctx }, id: number) => {
+const makeMove: Move<TicTacContractState> = ({ G, ctx }, id: number) => {
   if (G.cells[id] !== null) return;
   G.cells[id] = ctx.currentPlayer;
 };
 
-export const TicTacToe: Game<TicTacToeState> = {
-  name: 'tictactoe',
+export const TicTacContract: Game<TicTacContractState> = {
+  name: 'tic-tac-contract',
   setup: () => ({
     cells: Array(9).fill(null),
     winner: null,

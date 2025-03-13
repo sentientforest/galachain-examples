@@ -1,8 +1,8 @@
 import { Server } from 'boardgame.io/server';
-import { TicTacToe } from './game';
+import { TicTacContract } from './game';
 
-const server = Server({ 
-  games: [TicTacToe],
+const server = Server({
+  games: [TicTacContract],
   origins: ['http://localhost:5173'] // Default Vite dev server port
 });
 
