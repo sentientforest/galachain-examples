@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <h1>Tic Tac Toe</h1>
-    
+
     <div v-if="!gameId" class="start-section">
       <button @click="startNewGame" class="start-button">Start New Game</button>
       <div class="join-section">
@@ -18,8 +18,8 @@
       </div>
 
       <div class="board">
-        <div v-for="(cell, index) in cells" 
-             :key="index" 
+        <div v-for="(cell, index) in cells"
+             :key="index"
              class="cell"
              :class="{ 'cell-playable': isPlayable(index) }"
              @click="makeMove(index)">
@@ -34,6 +34,26 @@
         <button @click="resetGame" class="play-again-button">Reset</button>
       </div>
     </div>
+    <div v-if="!metamaskSupport">
+      <p>
+        This application uses the GalaConnect API via Metamask to sign
+        transactions and interact with GalaChain.
+      </p>
+      <p>
+        Visit this site using a browser with the Metamask web extension
+        installed to save game state on chain.
+      </p>
+    </div>
+    <div v-else-if="!isConnected" class="connect-section">
+      <button @click="connect">Connect Wallet</button>
+    </div>
+    <div v-else>
+      <p class="wallet-address">Connected: {{ walletAddress }}</p>
+      <RouterView
+        :wallet-address="walletAddress"
+        :metamask-client="metamaskClient"
+      />
+    </div>
   </div>
 </template>
 
@@ -41,7 +61,26 @@
 import { ref, computed } from 'vue';
 import { Client } from 'boardgame.io/client';
 import { SocketIO } from 'boardgame.io/multiplayer';
-import { TicTacToe, TicTacToeState } from './game';
+import { TicTacContract, TicTacContractState } from './game';
+import { BrowserConnectClient } from "@gala-chain/connect";
+import { connectWallet } from "./connect";
+import { CreateGameDto, MakeMoveDto } from "./dtos";
+
+const metamaskSupport = ref(true);
+let metamaskClient: BrowserConnectClient;
+try {
+  metamaskClient = new BrowserConnectClient();
+} catch (e) {
+  metamaskSupport.value = false;
+}
+
+const isConnected = ref(false);
+const walletAddress = ref("");
+const showInfo = ref(false);
+
+async function connect() {
+  await connectWallet(metamaskSupport, metamaskClient, walletAddress, isConnected);
+}
 
 interface GameOver {
   winner: string | null;
@@ -49,7 +88,7 @@ interface GameOver {
 }
 
 interface ClientState {
-  G: TicTacToeState;
+  G: TicTacContractState;
   ctx: {
     currentPlayer: string;
     gameover?: GameOver;
@@ -57,15 +96,17 @@ interface ClientState {
   isActive?: boolean;
 }
 
-type TicTacToeClient = ReturnType<typeof Client<TicTacToeState, Record<string, unknown>>>;
+type TicTacContractClient = ReturnType<typeof Client<TicTacContractState, Record<string, unknown>>>;
 
-const createClient = (matchId: string, playerId: string): TicTacToeClient => {
-  return Client<TicTacToeState, Record<string, unknown>>({
-    game: TicTacToe,
+const serverBaseUrl = import.meta.env.VITE_PROJECT_API ?? 'http://localhost:8000';
+
+const createClient = (matchId: string, playerId: string): TicTacContractClient => {
+  return Client<TicTacContractState, Record<string, unknown>>({
+    game: TicTacContract,
     matchID: matchId,
     playerID: playerId,
     debug: false,
-    multiplayer: SocketIO({ server: 'http://localhost:8000' })
+    multiplayer: SocketIO({ server: serverBaseUrl })
   });
 };
 
@@ -76,7 +117,7 @@ const cells = ref<(string | null)[]>(Array(9).fill(null));
 const winner = ref<string | null>(null);
 const isDraw = ref(false);
 const playerID = ref<string>('0');
-const client = ref<TicTacToeClient | null>(null);
+const client = ref<TicTacContractClient | null>(null);
 
 const isWinner = computed(() => winner.value === playerID.value);
 const currentSymbol = computed(() => playerID.value === '0' ? 'X' : 'O');
@@ -86,10 +127,10 @@ let unsubscribe: Function | undefined;
 const initializeClient = (matchId: string, initialPlayerId: string) => {
   playerID.value = initialPlayerId;
   console.log('Initializing client with:', { matchId, initialPlayerId });
-  
+
   client.value = createClient(matchId, initialPlayerId);
-  
-  console.log('Client initialized:', { 
+
+  console.log('Client initialized:', {
     playerID: client.value.playerID,
     matchID: client.value.matchID
   });
@@ -108,7 +149,7 @@ const initializeClient = (matchId: string, initialPlayerId: string) => {
       currentPlayer.value = state.ctx.currentPlayer;
       winner.value = state.ctx.gameover?.winner ?? null;
       isDraw.value = (state.ctx.gameover?.draw) ?? false;
-      
+
       if (state.ctx.gameover) {
         console.log('Game Over State:', {
           winner: state.ctx.gameover.winner,
@@ -124,14 +165,14 @@ const initializeClient = (matchId: string, initialPlayerId: string) => {
 
 const startNewGame = async () => {
   try {
-    const response = await fetch('http://localhost:8000/games/tictactoe/create', {
+    const response = await fetch('http://localhost:8000/games/tic-tac-contract/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ numPlayers: 2 })
     });
     const data = await response.json();
     gameId.value = data.matchID;
-    
+
     initializeClient(data.matchID, '0');
   } catch (error) {
     console.error('Failed to start new game:', error);
@@ -139,9 +180,9 @@ const startNewGame = async () => {
 };
 
 const isPlayable = (index: number): boolean => {
-  return !cells.value[index] && 
-         !winner.value && 
-         !isDraw.value && 
+  return !cells.value[index] &&
+         !winner.value &&
+         !isDraw.value &&
          playerID.value === currentPlayer.value;
 };
 
