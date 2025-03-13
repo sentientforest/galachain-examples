@@ -5,74 +5,140 @@
  */
 import { ChainCallDTO, SubmitCallDTO } from "@gala-chain/api";
 import { Type } from "class-transformer";
-import { IsArray, IsNumber, IsOptional, IsString, Max, Min, ValidateNested } from "class-validator";
+import {
+  IsArray,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  ValidateIf,
+  ValidateNested
+} from "class-validator";
 
-import { TicTacGame } from "./TicTacGame";
+import { TicTacMatch } from "./TicTacMatch";
 
-export class CreateGameDto extends SubmitCallDTO {
+export class CreateMatchDto extends SubmitCallDTO {
+  @IsOptional()
   @IsString()
-  public readonly playerO: string;
+  @ValidateIf((o) => o.playerO === undefined)
+  public playerX?: string;
 
-  constructor(playerO: string, uniqueKey: string) {
+  @IsOptional()
+  @IsString()
+  @ValidateIf((o) => o.playerX === undefined)
+  public playerO?: string;
+
+  @IsOptional()
+  @IsString()
+  public boardgameState?: string;
+
+  constructor(
+    playerX: string | undefined,
+    playerO: string | undefined,
+    uniqueKey: string,
+    boardgameState?: string
+  ) {
     super();
+    this.playerX = playerX;
     this.playerO = playerO;
     this.uniqueKey = uniqueKey;
+    this.boardgameState = boardgameState;
+  }
+}
+
+export class JoinMatchDto extends SubmitCallDTO {
+  @IsString()
+  public matchId: string;
+
+  @IsOptional()
+  @IsString()
+  @ValidateIf((o) => o.playerO === undefined)
+  public playerX?: string;
+
+  @IsOptional()
+  @IsString()
+  @ValidateIf((o) => o.playerX === undefined)
+  public playerO?: string;
+
+  @IsOptional()
+  @IsString()
+  public boardgameState?: string;
+
+  constructor(
+    matchId: string,
+    playerX: string | undefined,
+    playerO: string | undefined,
+    uniqueKey: string,
+    boardgameState?: string
+  ) {
+    super();
+    this.matchId = matchId;
+    this.playerX = playerX;
+    this.playerO = playerO;
+    this.uniqueKey = uniqueKey;
+    this.boardgameState = boardgameState;
   }
 }
 
 export class MakeMoveDto extends SubmitCallDTO {
   @IsString()
-  public readonly gameId: string;
+  public matchId: string;
 
   @IsNumber()
   @Min(0)
   @Max(8)
-  public readonly position: number;
+  public position: number;
 
-  constructor(gameId: string, position: number, uniqueKey: string) {
+  @IsString()
+  @IsOptional()
+  public boardgameState?: string;
+
+  constructor(matchId: string, position: number, uniqueKey: string, boardgameState?: string) {
     super();
-    this.gameId = gameId;
+    this.matchId = matchId;
     this.position = position;
     this.uniqueKey = uniqueKey;
+    this.boardgameState = boardgameState;
   }
 }
 
-export class FetchGamesDto extends ChainCallDTO {
+export class FetchMatchesDto extends ChainCallDTO {
   @IsString()
   @IsOptional()
-  public readonly player?: string;
-
-  @IsString()
-  @IsOptional()
-  public readonly gameId?: string;
+  public player?: string;
 
   @IsString()
   @IsOptional()
-  public readonly bookmark?: string;
+  public matchId?: string;
+
+  @IsString()
+  @IsOptional()
+  public bookmark?: string;
 
   @IsOptional()
-  public readonly limit?: number;
+  public limit?: number;
 
-  constructor(player?: string, gameId?: string, bookmark?: string, limit?: number) {
+  constructor(player?: string, matchId?: string, bookmark?: string, limit?: number) {
     super();
     this.player = player;
-    this.gameId = gameId;
+    this.matchId = matchId;
     this.bookmark = bookmark;
     this.limit = limit;
   }
 }
 
-export class PagedGamesDto {
+export class FetchMatchesResDto {
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => TicTacGame)
-  public readonly games: TicTacGame[];
+  @Type(() => TicTacMatch)
+  public readonly results: TicTacMatch[];
 
   @IsString()
   public readonly bookmark: string;
 
-  constructor(games: TicTacGame[], bookmark: string) {
-    this.games = games;
+  constructor(results: TicTacMatch[], bookmark: string) {
+    this.results = results;
     this.bookmark = bookmark;
   }
 }

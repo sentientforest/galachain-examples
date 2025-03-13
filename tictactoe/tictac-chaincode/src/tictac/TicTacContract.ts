@@ -6,10 +6,11 @@
 import { Evaluate, GalaChainContext, GalaContract, Submit } from "@gala-chain/chaincode";
 
 import { version } from "../../package.json";
-import { TicTacGame } from "./TicTacGame";
-import { createGame } from "./createGame";
-import { CreateGameDto, FetchGamesDto, MakeMoveDto, PagedGamesDto } from "./dtos";
-import { fetchGames } from "./fetchGames";
+import { TicTacMatch } from "./TicTacMatch";
+import { createMatch } from "./createMatch";
+import { CreateMatchDto, FetchMatchesDto, FetchMatchesResDto, JoinMatchDto, MakeMoveDto } from "./dtos";
+import { fetchMatches } from "./fetchMatches";
+import { joinMatch } from "./joinMatch";
 import { makeMove } from "./makeMove";
 
 export class TicTacContract extends GalaContract {
@@ -18,26 +19,34 @@ export class TicTacContract extends GalaContract {
   }
 
   @Submit({
-    in: CreateGameDto,
-    out: TicTacGame
+    in: CreateMatchDto,
+    out: TicTacMatch
   })
-  public async CreateGame(ctx: GalaChainContext, dto: CreateGameDto): Promise<TicTacGame> {
-    return createGame(ctx, dto);
+  public async CreateMatch(ctx: GalaChainContext, dto: CreateMatchDto): Promise<TicTacMatch> {
+    return createMatch(ctx, dto);
+  }
+
+  @Submit({
+    in: JoinMatchDto,
+    out: TicTacMatch
+  })
+  public async JoinMatch(ctx: GalaChainContext, dto: JoinMatchDto): Promise<TicTacMatch> {
+    return joinMatch(ctx, dto);
   }
 
   @Submit({
     in: MakeMoveDto,
-    out: TicTacGame
+    out: TicTacMatch
   })
-  public async MakeMove(ctx: GalaChainContext, dto: MakeMoveDto): Promise<TicTacGame> {
+  public async MakeMove(ctx: GalaChainContext, dto: MakeMoveDto): Promise<TicTacMatch> {
     return makeMove(ctx, dto);
   }
 
   @Evaluate({
-    in: FetchGamesDto,
-    out: PagedGamesDto
+    in: FetchMatchesDto,
+    out: FetchMatchesResDto
   })
-  public async FetchGames(ctx: GalaChainContext, dto: FetchGamesDto): Promise<PagedGamesDto> {
-    return await fetchGames(ctx, dto);
+  public async FetchMatches(ctx: GalaChainContext, dto: FetchMatchesDto): Promise<FetchMatchesResDto> {
+    return await fetchMatches(ctx, dto);
   }
 }

@@ -5,6 +5,7 @@
     "noEmit": true,
     "strictNullChecks": true,
     "declarationMap": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "types": ["jest", "node"]
   }
 }

@@ -19,8 +19,8 @@ export enum PlayerSymbol {
   O = "O"
 }
 
-interface TicTacGame {
-  gameId: string;
+interface TicTacMatch {
+  matchId: string;
   playerX: string;
   playerO: string;
   board: (PlayerSymbol | null)[];
@@ -30,54 +30,64 @@ interface TicTacGame {
   lastMoveAt: number;
 }
 
-export class CreateGameDto extends SubmitCallDTO {
+export class CreateMatchDto extends SubmitCallDTO {
   @IsString()
-  public readonly playerO: string;
+  public playerO: string;
 
-  constructor(playerO: string, uniqueKey: string) {
+  @IsString()
+  @IsOptional()
+  public boardgameState?: string;
+
+  constructor(playerO: string, uniqueKey: string, boardgameState?: string) {
     super();
     this.playerO = playerO;
     this.uniqueKey = uniqueKey;
+    this.boardgameState = boardgameState;
   }
 }
 
 export class MakeMoveDto extends SubmitCallDTO {
   @IsString()
-  public readonly gameId: string;
+  public matchId: string;
 
   @IsNumber()
   @Min(0)
   @Max(8)
-  public readonly position: number;
+  public position: number;
 
-  constructor(gameId: string, position: number, uniqueKey: string) {
+  @IsString()
+  @IsOptional()
+  public boardgameState?: string;
+
+  constructor(matchId: string, position: number, uniqueKey: string, boardgameState?: string) {
     super();
-    this.gameId = gameId;
+    this.matchId = matchId;
     this.position = position;
     this.uniqueKey = uniqueKey;
+    this.boardgameState = boardgameState;
   }
 }
 
-export class FetchGamesDto extends ChainCallDTO {
+export class FetchMatchesDto extends ChainCallDTO {
   @IsString()
   @IsOptional()
-  public readonly player?: string;
-
-  @IsString()
-  @IsOptional()
-  public readonly gameId?: string;
+  public player?: string;
 
   @IsString()
   @IsOptional()
-  public readonly bookmark?: string;
+  public matchId?: string;
+
+  @IsString()
+  @IsOptional()
+  public bookmark?: string;
 
   @IsOptional()
-  public readonly limit?: number;
+  public limit?: number;
 
-  constructor(player?: string, gameId?: string, bookmark?: string, limit?: number) {
+  constructor(player?: string, matchId?: string, bookmark?: string, limit?: number) {
     super();
     this.player = player;
-    this.gameId = gameId;
+    this.matchId = matchId;
     this.bookmark = bookmark;
     this.limit = limit;
   }
@@ -85,12 +95,12 @@ export class FetchGamesDto extends ChainCallDTO {
 
 export class PagedGamesDto {
   @IsArray()
-  public readonly games: TicTacGame[];
+  public games: TicTacMatch[];
 
   @IsString()
-  public readonly bookmark: string;
+  public bookmark: string;
 
-  constructor(games: TicTacGame[], bookmark: string) {
+  constructor(games: TicTacMatch[], bookmark: string) {
     this.games = games;
     this.bookmark = bookmark;
   }

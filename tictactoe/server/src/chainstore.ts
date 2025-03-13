@@ -1,10 +1,10 @@
 import { LogEntry, Server, State, StorageAPI } from 'boardgame.io';
 import { Async } from 'boardgame.io/internal';
 import { createValidDTO } from "@gala-chain/api";
-import { CreateGameDto, MakeMoveDto, FetchGamesDto } from "./dtos";
+import { CreateMatchDto, MakeMoveDto, FetchMatchesDto } from "./dtos";
 
 export interface TicTacMatch {
-  gameId: string;
+  matchId: string;
 }
 export class Chainstore extends Async {
   private apiUrl: string;
@@ -20,7 +20,7 @@ export class Chainstore extends Async {
     console.log('Connected to custom storage');
   }
 
-  async createMatch(gameID: string, {
+  async createMatch(matchId: string, {
     initialState,
     metadata: {
       gameName,
@@ -38,7 +38,7 @@ export class Chainstore extends Async {
     if (typeof dto !== 'string') {
       return;
     } else {
-      await fetch(`${url}/CreateMatch`, {
+      await fetch(`${url}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: dto
@@ -98,56 +98,49 @@ export class Chainstore extends Async {
     matchID: string,
     { state, log, metadata, initialState }: O
   ): Promise<StorageAPI.FetchResult<O>> {
-    // todo: implement compatible fetch dto
-    const dto = {};
+    const dto = new FetchMatchesDto();
+    dto.matchId = matchID;
 
     const url = `${this.apiUrl}${this.contractPath}/FetchMatch`;
 
     const result = {} as StorageAPI.FetchFields;
 
-    if (typeof dto !== 'string') {
-      return result;
-    } else {
-      // todo: implement
-      const chainRes = await fetch(`${url}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: dto
-      });
+    const chainRes = await fetch(`${url}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dto)
+    });
 
-      if (!chainRes.ok) {
-        throw new Error(`Failed to lookup match ${matchID} on chain`);
-      }
-
-      const match = await chainRes.json();
-
-      if (metadata) {
-        result.metadata = {
-          gameName: match.gameName,
-          players: match.players || [],
-          setupData: match.setupData,
-          gameover: match.gameover,
-          nextMatchID: match.nextRoomID,
-          unlisted: match.unlisted,
-          createdAt: match.createdAt,
-          updatedAt: match.updatedAt,
-        };
-      }
-
-      if (initialState) {
-        result.initialState = match.initialState;
-      }
-
-      if (state) {
-        result.state = match.state!;
-      }
-
-      if (log) {
-        result.log = match.log;
-      }
-
-      return result as StorageAPI.FetchResult<O>;
+    if (!chainRes.ok) {
+      throw new Error(`Failed to lookup match ${matchID} on chain`);
     }
+
+    const match = await chainRes.json();
+
+    if (!match.boardgameState) {
+      return result;
+    }
+
+    // Parse the serialized state
+    const gameState = JSON.parse(match.boardgameState);
+
+    if (metadata) {
+      result.metadata = gameState.metadata;
+    }
+
+    if (initialState) {
+      result.initialState = gameState.initialState;
+    }
+
+    if (state) {
+      result.state = gameState.state;
+    }
+
+    if (log) {
+      result.log = gameState.log;
+    }
+
+    return result as StorageAPI.FetchResult<O>;
   }
 
   /**
@@ -161,7 +154,7 @@ export class Chainstore extends Async {
   /* istanbul ignore next */
   async listMatches(opts?: StorageAPI.ListMatchesOpts): Promise<string[]> {
     // todo: implement signing from server-side identity
-    const dto = new FetchGamesDto();
+    const dto = new FetchMatchesDto();
 
     const url = `${this.apiUrl}${this.contractPath}/FetchMatches`;
 
@@ -179,7 +172,7 @@ export class Chainstore extends Async {
 
     const chainResults = await chainRes.json();
 
-    return chainResults.map((m: TicTacMatch) => m.gameId)
+    return chainResults.map((m: TicTacMatch) => m.matchId)
   }
 
   /**
@@ -190,6 +183,6 @@ export class Chainstore extends Async {
   async listGames(): Promise<string[]> {
     const response = await fetch(`${this.apiUrl}/games`);
     const games = await response.json();
-    return games.map((game: any) => game.gameID);
+    return games.map((game: any) => game.matchId);
   }
 }

@@ -2,17 +2,17 @@
   <div class="container">
     <h1>Tic Tac Toe</h1>
 
-    <div v-if="!gameId" class="start-section">
-      <button @click="startNewGame" class="start-button">Start New Game</button>
+    <div v-if="!matchId" class="start-section">
+      <button @click="startNewMatch" class="start-button">Start New Game</button>
       <div class="join-section">
-        <input v-model="joinGameId" placeholder="Enter Game ID" class="game-id-input" />
-        <button @click="joinGame" class="join-button" :disabled="!joinGameId">Join Game</button>
+        <input v-model="joinMatchId" placeholder="Enter Game ID" class="game-id-input" />
+        <button @click="joinMatch" class="join-button" :disabled="!joinMatchId">Join Game</button>
       </div>
     </div>
 
     <div v-else class="game-section">
       <div class="game-info">
-        <p>Game ID: {{ gameId }}</p>
+        <p>Game ID: {{ matchId }}</p>
         <p>Current Player: {{ currentPlayer === '0' ? 'X' : 'O' }}</p>
       <p>You are: {{ currentSymbol }}</p>
       </div>
@@ -64,7 +64,7 @@ import { SocketIO } from 'boardgame.io/multiplayer';
 import { TicTacContract, TicTacContractState } from './game';
 import { BrowserConnectClient } from "@gala-chain/connect";
 import { connectWallet } from "./connect";
-import { CreateGameDto, MakeMoveDto } from "./dtos";
+import { CreateMatchDto, MakeMoveDto } from "./dtos";
 
 const metamaskSupport = ref(true);
 let metamaskClient: BrowserConnectClient;
@@ -110,8 +110,8 @@ const createClient = (matchId: string, playerId: string): TicTacContractClient =
   });
 };
 
-const gameId = ref('');
-const joinGameId = ref('');
+const matchId = ref('');
+const joinMatchId = ref('');
 const currentPlayer = ref<string>('0');
 const cells = ref<(string | null)[]>(Array(9).fill(null));
 const winner = ref<string | null>(null);
@@ -163,7 +163,7 @@ const initializeClient = (matchId: string, initialPlayerId: string) => {
   client.value.start();
 };
 
-const startNewGame = async () => {
+const startNewMatch = async () => {
   try {
     const response = await fetch('http://localhost:8000/games/tic-tac-contract/create', {
       method: 'POST',
@@ -171,7 +171,7 @@ const startNewGame = async () => {
       body: JSON.stringify({ numPlayers: 2 })
     });
     const data = await response.json();
-    gameId.value = data.matchID;
+    matchId.value = data.matchID;
 
     initializeClient(data.matchID, '0');
   } catch (error) {
@@ -192,7 +192,7 @@ const makeMove = (index: number) => {
 };
 
 const resetGame = () => {
-  gameId.value = '';
+  matchId.value = '';
   currentPlayer.value = '0';
   cells.value = Array(9).fill(null);
   winner.value = null;
@@ -208,11 +208,11 @@ const resetGame = () => {
   }
 };
 
-const joinGame = () => {
-  if (!joinGameId.value) return;
-  gameId.value = joinGameId.value;
-  initializeClient(joinGameId.value, '1');
-  joinGameId.value = '';
+const joinMatch = () => {
+  if (!joinMatchId.value) return;
+  matchId.value = joinMatchId.value;
+  initializeClient(joinMatchId.value, '1');
+  joinMatchId.value = '';
 };
 </script>
 

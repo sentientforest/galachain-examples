@@ -9,13 +9,13 @@ import { IsArray, IsString } from "class-validator";
 
 import { GameStatus, PlayerSymbol } from "./types";
 
-export class TicTacGame extends ChainObject {
+export class TicTacMatch extends ChainObject {
   @Exclude()
   static INDEX_KEY = "GCTTT";
 
   @ChainKey({ position: 0 })
   @IsString()
-  public readonly gameId: string;
+  public readonly matchId: string;
 
   @IsString()
   public readonly playerX: string;
@@ -34,9 +34,9 @@ export class TicTacGame extends ChainObject {
 
   public lastMoveAt: number;
 
-  constructor(gameId: string, playerX: string, playerO: string, createdAt: number) {
+  constructor(matchId: string, playerX: string, playerO: string, createdAt: number) {
     super();
-    this.gameId = gameId;
+    this.matchId = matchId;
     this.playerX = playerX;
     this.playerO = playerO;
     this.board = Array(9).fill(null);

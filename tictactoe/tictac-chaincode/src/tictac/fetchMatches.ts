@@ -9,20 +9,20 @@ import {
   takeUntilUndefined
 } from "@gala-chain/chaincode";
 
-import { TicTacGame } from "./TicTacGame";
-import { FetchGamesDto, PagedGamesDto } from "./dtos";
+import { TicTacMatch } from "./TicTacMatch";
+import { FetchMatchesDto, FetchMatchesResDto } from "./dtos";
 
-export async function fetchGames(ctx: GalaChainContext, dto: FetchGamesDto): Promise<PagedGamesDto> {
-  const query = takeUntilUndefined(dto.gameId, dto.player);
+export async function fetchMatches(ctx: GalaChainContext, dto: FetchMatchesDto): Promise<FetchMatchesResDto> {
+  const query = takeUntilUndefined(dto.matchId, dto.player);
 
   const lookup = await getObjectsByPartialCompositeKeyWithPagination(
     ctx,
-    TicTacGame.INDEX_KEY,
+    TicTacMatch.INDEX_KEY,
     query,
-    TicTacGame,
+    TicTacMatch,
     dto.bookmark ?? "",
     dto.limit ?? 1000
   );
 
-  return new PagedGamesDto(lookup.results, lookup.metadata.bookmark);
+  return new FetchMatchesResDto(lookup.results, lookup.metadata.bookmark);
 }

@@ -5,9 +5,9 @@
  */
 
 export * from "./TicTacContract";
-export * from "./TicTacGame";
+export * from "./TicTacMatch";
 export * from "./types";
 export * from "./dtos";
-export * from "./createGame";
+export * from "./createMatch";
 export * from "./makeMove";
-export * from "./fetchGames";
+export * from "./fetchMatches";

@@ -3,25 +3,27 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  */
-import { ChainKey, ChainObject, DefaultError, NotFoundError } from "@gala-chain/api";
+import { ChainKey, ChainObject, DefaultError } from "@gala-chain/api";
 import { Exclude } from "class-transformer";
-import { IsArray, IsString } from "class-validator";
+import { IsArray, IsOptional, IsString } from "class-validator";
 
 import { GameStatus, PlayerSymbol } from "./types";
 
-export class TicTacGame extends ChainObject {
+export class TicTacMatch extends ChainObject {
   @Exclude()
   static INDEX_KEY = "GCTTT";
 
   @ChainKey({ position: 0 })
   @IsString()
-  public readonly gameId: string;
+  public matchId: string;
 
+  @IsOptional()
   @IsString()
-  public readonly playerX: string;
+  public playerX?: string | undefined;
 
+  @IsOptional()
   @IsString()
-  public readonly playerO: string;
+  public playerO?: string | undefined;
 
   @IsArray()
   public board: (PlayerSymbol | null)[];
@@ -30,13 +32,22 @@ export class TicTacGame extends ChainObject {
 
   public currentPlayer: PlayerSymbol;
 
-  public readonly createdAt: number;
+  public createdAt: number;
 
   public lastMoveAt: number;
 
-  constructor(gameId: string, playerX: string, playerO: string, createdAt: number) {
+  // Serialized boardgame.io state
+  public boardgameState?: string | undefined;
+
+  constructor(
+    matchId: string,
+    playerX: string | undefined,
+    playerO: string | undefined,
+    createdAt: number,
+    boardgameState?: string | undefined
+  ) {
     super();
-    this.gameId = gameId;
+    this.matchId = matchId;
     this.playerX = playerX;
     this.playerO = playerO;
     this.board = Array(9).fill(null);
@@ -44,6 +55,7 @@ export class TicTacGame extends ChainObject {
     this.currentPlayer = PlayerSymbol.X;
     this.createdAt = createdAt;
     this.lastMoveAt = createdAt;
+    this.boardgameState = boardgameState;
   }
 
   private checkWinner(): GameStatus {
