@@ -1,0 +1,15 @@
+{
+  "name": "@gala-chain/examples-scripts",
+  "version": "0.0.0",
+  "description": "Utility scripts for working with the galachain examples repo",
+  "main": "index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "18.16.9",
+    "tslib": "^2.3.0"
+  }
+}
