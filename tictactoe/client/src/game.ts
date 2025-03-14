@@ -1,7 +1,7 @@
 import { Game, Move } from 'boardgame.io';
 
 export interface TicTacContractState {
-  dto?: string | undefined;
+  dto?: unknown | undefined;
   cells: (string | null)[];
   winner: string | null;
 }
@@ -14,7 +14,8 @@ const makeMove: Move<TicTacContractState> = ({ G, ctx }, id: number, dto?: strin
 
 export const TicTacContract: Game<TicTacContractState> = {
   name: 'tic-tac-contract',
-  setup: () => ({
+  setup: ({ ctx, ...plugins }, setupData: TicTacContractState) => ({
+    dto: setupData.dto,
     cells: Array(9).fill(null),
     winner: null,
   }),

@@ -15,6 +15,10 @@ export default defineConfig({
       '/games': {
         target: 'http://localhost:8000',
         changeOrigin: true
+      },
+      '/identities': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
       }
     }
   }

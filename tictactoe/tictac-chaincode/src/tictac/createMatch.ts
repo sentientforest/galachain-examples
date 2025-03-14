@@ -13,7 +13,7 @@ export async function createMatch(ctx: GalaChainContext, dto: CreateMatchDto): P
 
   // todo: consider adding validation to verify calling user is either playerO or playerX
 
-  const matchId = ctx.stub.getTxID();
+  const matchId = dto.matchId;
   const timestamp = ctx.txUnixTime;
 
   const game = new TicTacMatch(matchId, playerX, playerO, timestamp, boardgameState);

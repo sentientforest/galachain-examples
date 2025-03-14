@@ -3,12 +3,20 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  */
-import { Evaluate, GalaChainContext, GalaContract, Submit } from "@gala-chain/chaincode";
+import { GalaChainContext, GalaContract, Submit, UnsignedEvaluate } from "@gala-chain/chaincode";
 
 import { version } from "../../package.json";
 import { TicTacMatch } from "./TicTacMatch";
 import { createMatch } from "./createMatch";
-import { CreateMatchDto, FetchMatchesDto, FetchMatchesResDto, JoinMatchDto, MakeMoveDto } from "./dtos";
+import {
+  CreateMatchDto,
+  FetchMatchDto,
+  FetchMatchesDto,
+  FetchMatchesResDto,
+  JoinMatchDto,
+  MakeMoveDto
+} from "./dtos";
+import { fetchMatch } from "./fetchMatch";
 import { fetchMatches } from "./fetchMatches";
 import { joinMatch } from "./joinMatch";
 import { makeMove } from "./makeMove";
@@ -24,6 +32,14 @@ export class TicTacContract extends GalaContract {
   })
   public async CreateMatch(ctx: GalaChainContext, dto: CreateMatchDto): Promise<TicTacMatch> {
     return createMatch(ctx, dto);
+  }
+
+  @UnsignedEvaluate({
+    in: FetchMatchDto,
+    out: TicTacMatch
+  })
+  public async FetchMatch(ctx: GalaChainContext, dto: FetchMatchDto): Promise<TicTacMatch> {
+    return fetchMatch(ctx, dto);
   }
 
   @Submit({
@@ -42,7 +58,7 @@ export class TicTacContract extends GalaContract {
     return makeMove(ctx, dto);
   }
 
-  @Evaluate({
+  @UnsignedEvaluate({
     in: FetchMatchesDto,
     out: FetchMatchesResDto
   })

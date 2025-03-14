@@ -1,7 +1,7 @@
 import { LogEntry, Server, State, StorageAPI } from 'boardgame.io';
 import { Async } from 'boardgame.io/internal';
-import { createValidDTO } from "@gala-chain/api";
-import { CreateMatchDto, MakeMoveDto, FetchMatchesDto } from "./dtos";
+import { createValidDTO, serialize } from "@gala-chain/api";
+import { CreateMatchDto, MakeMoveDto, FetchMatchDto, FetchMatchesDto } from "./dtos";
 
 export interface TicTacMatch {
   matchId: string;
@@ -31,18 +31,41 @@ export class Chainstore extends Async {
       unlisted
     }
   }: StorageAPI.CreateMatchOpts): Promise<void> {
-    const dto = initialState.G.dto;
+    console.log(`createMatch for matchId: ${matchId}`);
+
+    if (!setupData) {
+      console.log(`createMatch call missing setupData: ${setupData} --- ${JSON.stringify({ initialState, gameName, players, nextMatchID })}`);
+      return;
+    }
+
+    const dto: CreateMatchDto = setupData.dto;
+
+    console.log(`createMatch in chainstore: ${JSON.stringify(initialState)} --- ${gameName} --- ${JSON.stringify(setupData)} --- ${nextMatchID}`);
 
     const url = `${this.apiUrl}${this.contractPath}/CreateMatch`;
 
-    if (typeof dto !== 'string') {
+    if (!dto) {
+      console.log(`createMatch missing DTO: ${JSON.stringify(initialState)} ----- ${JSON.stringify({ gameName, setupData })}`);
       return;
     } else {
+      let serializedDto;
+
+      try {
+        // todo: consider instantiating and validating dto properties here
+        serializedDto = serialize(dto);
+      } catch (e) {
+        console.log(`Failed to serialize dto: ${dto} with error: ${e}`)
+        throw e;
+      }
+
       await fetch(`${url}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: dto
-      });
+        body: serializedDto
+      }).catch((e) => {
+        console.log(`Failed to createMatch in chainstore: ${e} from ${url}`);
+        throw e;
+      })
     }
   }
 
@@ -98,7 +121,7 @@ export class Chainstore extends Async {
     matchID: string,
     { state, log, metadata, initialState }: O
   ): Promise<StorageAPI.FetchResult<O>> {
-    const dto = new FetchMatchesDto();
+    const dto = new FetchMatchDto();
     dto.matchId = matchID;
 
     const url = `${this.apiUrl}${this.contractPath}/FetchMatch`;

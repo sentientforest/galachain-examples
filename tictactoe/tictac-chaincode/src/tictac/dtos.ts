@@ -7,6 +7,7 @@ import { ChainCallDTO, SubmitCallDTO } from "@gala-chain/api";
 import { Type } from "class-transformer";
 import {
   IsArray,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -19,6 +20,9 @@ import {
 import { TicTacMatch } from "./TicTacMatch";
 
 export class CreateMatchDto extends SubmitCallDTO {
+  @IsNotEmpty()
+  public matchId: string;
+
   @IsOptional()
   @IsString()
   @ValidateIf((o) => o.playerO === undefined)
@@ -103,6 +107,11 @@ export class MakeMoveDto extends SubmitCallDTO {
   }
 }
 
+export class FetchMatchDto extends ChainCallDTO {
+  @IsString()
+  public matchId: string;
+}
+
 export class FetchMatchesDto extends ChainCallDTO {
   @IsString()
   @IsOptional()
@@ -128,7 +137,7 @@ export class FetchMatchesDto extends ChainCallDTO {
   }
 }
 
-export class FetchMatchesResDto {
+export class FetchMatchesResDto extends ChainCallDTO {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => TicTacMatch)
@@ -138,6 +147,7 @@ export class FetchMatchesResDto {
   public readonly bookmark: string;
 
   constructor(results: TicTacMatch[], bookmark: string) {
+    super();
     this.results = results;
     this.bookmark = bookmark;
   }

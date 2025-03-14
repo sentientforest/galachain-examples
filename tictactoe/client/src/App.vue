@@ -62,9 +62,10 @@ import { ref, computed } from 'vue';
 import { Client } from 'boardgame.io/client';
 import { SocketIO } from 'boardgame.io/multiplayer';
 import { TicTacContract, TicTacContractState } from './game';
+import { serialize } from "@gala-chain/api";
 import { BrowserConnectClient } from "@gala-chain/connect";
 import { connectWallet } from "./connect";
-import { CreateMatchDto, MakeMoveDto } from "./dtos";
+import type { ICreateMatchDto, IJoinMatchDto, IMakeMoveDto } from "./dtos";
 
 const metamaskSupport = ref(true);
 let metamaskClient: BrowserConnectClient;
@@ -99,8 +100,9 @@ interface ClientState {
 type TicTacContractClient = ReturnType<typeof Client<TicTacContractState, Record<string, unknown>>>;
 
 const serverBaseUrl = import.meta.env.VITE_PROJECT_API ?? 'http://localhost:8000';
+const projectId = import.meta.env.VITE_PROJECT_ID ?? 'tic-tac-contract';
 
-const createClient = (matchId: string, playerId: string): TicTacContractClient => {
+const createClient = (matchId: string, playerId: string, dto?: string): TicTacContractClient => {
   return Client<TicTacContractState, Record<string, unknown>>({
     game: TicTacContract,
     matchID: matchId,
@@ -123,12 +125,13 @@ const isWinner = computed(() => winner.value === playerID.value);
 const currentSymbol = computed(() => playerID.value === '0' ? 'X' : 'O');
 
 let unsubscribe: Function | undefined;
+let boardgameState: string | undefined;
 
-const initializeClient = (matchId: string, initialPlayerId: string) => {
+const initializeClient = (matchId: string, initialPlayerId: string, dto?: string) => {
   playerID.value = initialPlayerId;
   console.log('Initializing client with:', { matchId, initialPlayerId });
 
-  client.value = createClient(matchId, initialPlayerId);
+  client.value = createClient(matchId, initialPlayerId, dto);
 
   console.log('Client initialized:', {
     playerID: client.value.playerID,
@@ -150,6 +153,14 @@ const initializeClient = (matchId: string, initialPlayerId: string) => {
       winner.value = state.ctx.gameover?.winner ?? null;
       isDraw.value = (state.ctx.gameover?.draw) ?? false;
 
+      try {
+        boardgameState = JSON.stringify(state);
+      } catch (e) {
+        console.log(
+          `Received unexpected boardgame.io state that failed to stringify to JSON: ${e}`
+        );
+      }
+
       if (state.ctx.gameover) {
         console.log('Game Over State:', {
           winner: state.ctx.gameover.winner,
@@ -157,6 +168,8 @@ const initializeClient = (matchId: string, initialPlayerId: string) => {
           isWinner: state.ctx.gameover.winner === client.value?.playerID
         });
       }
+    } else {
+      boardgameState = undefined;
     }
   });
 
@@ -165,15 +178,32 @@ const initializeClient = (matchId: string, initialPlayerId: string) => {
 
 const startNewMatch = async () => {
   try {
-    const response = await fetch('http://localhost:8000/games/tic-tac-contract/create', {
+    let dto;
+
+    try {
+      const signedDto = await confirmCreateMatch();
+      dto = signedDto; // JSON.stringify(signedDto);
+    } catch (e) {
+      // todo: error messaging
+      console.log(`Failed to confirm dto signging or stringify signed to: ${e}`);
+      return;
+    }
+
+    const createGameUrl = `${serverBaseUrl}/games/tic-tac-contract/create`;
+    console.log(`POST to /create endpont: ${createGameUrl}`);
+
+    const response = await fetch(createGameUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ numPlayers: 2 })
+      body: JSON.stringify({ matchID: dto.matchId, numPlayers: 2, setupData: { dto: dto } })
     });
-    const data = await response.json();
-    matchId.value = data.matchID;
 
-    initializeClient(data.matchID, '0');
+    const data = await response.json();
+    console.log(`create response: ${JSON.stringify(data)}`);
+
+    matchId.value = dto.matchId;
+
+    initializeClient(dto.matchId, '0');
   } catch (error) {
     console.error('Failed to start new game:', error);
   }
@@ -186,9 +216,21 @@ const isPlayable = (index: number): boolean => {
          playerID.value === currentPlayer.value;
 };
 
-const makeMove = (index: number) => {
+const makeMove = async (index: number) => {
   if (!client.value || !isPlayable(index)) return;
-  client.value.moves.makeMove(index);
+
+  let dto: string;
+
+  try {
+    const signedDto = await confirmMakeMove(index);
+    dto = JSON.stringify(signedDto);
+  } catch (e) {
+    // todo: error messaging
+    console.log(`Failed to confirm dto signging or stringify signed to: ${e}`);
+    return;
+  }
+
+  client.value.moves.makeMove(index, dto);
 };
 
 const resetGame = () => {
@@ -214,6 +256,68 @@ const joinMatch = () => {
   initializeClient(joinMatchId.value, '1');
   joinMatchId.value = '';
 };
+
+async function confirmCreateMatch() {
+  // todo: for now, assume match creator is always "X"
+  // this could be extended to allow for choice between "X" and "O"
+
+  const matchId: string = `${projectId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  const dto: ICreateMatchDto = {
+    matchId: matchId,
+    playerX: walletAddress.value,
+    uniqueKey: matchId
+  }
+
+  if (typeof boardgameState === "string") {
+    dto.boardgameState = boardgameState;
+  }
+
+  const signedDto = await metamaskClient.sign("CreateMatch", dto);
+
+  console.log("Signed by Gala Connect: ", JSON.stringify(signedDto));
+
+  return signedDto;
+}
+
+async function confirmJoinGame() {
+  // todo: for now, assume match creator is always "X"
+  // and joiner is "O"
+  // this could be extended to allow for choice between "X" and "O"
+  const dto: IJoinMatchDto = {
+    matchId: matchId.value,
+    playerO: walletAddress.value,
+    uniqueKey: `${projectId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+  }
+
+  if (typeof boardgameState === "string") {
+    dto.boardgameState = boardgameState;
+  }
+
+  const signedDto = await metamaskClient.sign("JoinMatch", dto);
+
+  console.log("Signed by Gala Connect: ", JSON.stringify(signedDto));
+
+  return signedDto;
+}
+
+async function confirmMakeMove(position: number) {
+  const dto: IMakeMoveDto = {
+    matchId: matchId.value,
+    position: position,
+    uniqueKey: `${projectId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+  }
+
+  if (typeof boardgameState === "string") {
+    dto.boardgameState = boardgameState;
+  }
+
+  const signedDto = await metamaskClient.sign("MakeMove", dto);
+
+  console.log("Signed by Gala Connect: ", JSON.stringify(signedDto));
+
+  return signedDto;
+}
 </script>
 
 <style scoped>

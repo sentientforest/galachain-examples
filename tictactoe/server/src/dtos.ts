@@ -5,8 +5,10 @@
  */
 import { ChainCallDTO, SubmitCallDTO } from "@gala-chain/api";
 import { Type } from "class-transformer";
-import { IsArray, IsNumber, IsOptional, IsString, Max, Min, ValidateNested } from "class-validator";
+import { IsArray, IsNumber, IsOptional, IsNotEmpty, IsString, Max, Min, ValidateIf, ValidateNested } from "class-validator";
 
+// copied from tictac-chaincode/src/dtos.ts
+// ref https://grugbrain.dev/
 export enum GameStatus {
   IN_PROGRESS = "IN_PROGRESS",
   X_WON = "X_WON",
@@ -29,17 +31,71 @@ interface TicTacMatch {
   createdAt: number;
   lastMoveAt: number;
 }
-
 export class CreateMatchDto extends SubmitCallDTO {
-  @IsString()
-  public playerO: string;
+  @IsNotEmpty()
+  public matchId: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
+  @ValidateIf((o) => o.playerO === undefined)
+  public playerX?: string;
+
+  @IsOptional()
+  @IsString()
+  @ValidateIf((o) => o.playerX === undefined)
+  public playerO?: string;
+
+  @IsOptional()
+  @IsString()
   public boardgameState?: string;
 
-  constructor(playerO: string, uniqueKey: string, boardgameState?: string) {
+  constructor(
+    playerX: string | undefined,
+    playerO: string | undefined,
+    uniqueKey: string,
+    boardgameState?: string
+  ) {
     super();
+    this.playerX = playerX;
+    this.playerO = playerO;
+    this.uniqueKey = uniqueKey;
+    this.boardgameState = boardgameState;
+  }
+}
+
+export class FetchMatchDto extends ChainCallDTO {
+  @IsString()
+  public matchId: string;
+}
+
+export class JoinMatchDto extends SubmitCallDTO {
+  @IsString()
+  public matchId: string;
+
+  @IsOptional()
+  @IsString()
+  @ValidateIf((o) => o.playerO === undefined)
+  public playerX?: string;
+
+  @IsOptional()
+  @IsString()
+  @ValidateIf((o) => o.playerX === undefined)
+  public playerO?: string;
+
+  @IsOptional()
+  @IsString()
+  public boardgameState?: string;
+
+  constructor(
+    matchId: string,
+    playerX: string | undefined,
+    playerO: string | undefined,
+    uniqueKey: string,
+    boardgameState?: string
+  ) {
+    super();
+    this.matchId = matchId;
+    this.playerX = playerX;
     this.playerO = playerO;
     this.uniqueKey = uniqueKey;
     this.boardgameState = boardgameState;
@@ -93,15 +149,16 @@ export class FetchMatchesDto extends ChainCallDTO {
   }
 }
 
-export class PagedGamesDto {
+export class FetchMatchesResDto extends ChainCallDTO {
   @IsArray()
-  public games: TicTacMatch[];
+  public readonly results: TicTacMatch[];
 
   @IsString()
-  public bookmark: string;
+  public readonly bookmark: string;
 
-  constructor(games: TicTacMatch[], bookmark: string) {
-    this.games = games;
+  constructor(results: TicTacMatch[], bookmark: string) {
+    super();
+    this.results = results;
     this.bookmark = bookmark;
   }
 }

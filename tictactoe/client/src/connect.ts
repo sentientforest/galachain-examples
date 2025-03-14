@@ -18,7 +18,8 @@ export async function connectWallet(
     // Check registration
     try {
       await checkRegistration(walletAddress);
-    } catch {
+    } catch (e) {
+      console.log(`registration check failed: ${e}. Attempting to register user: ${walletAddress}.`);
       await registerUser(metamaskClient, walletAddress);
     }
 
