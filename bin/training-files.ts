@@ -17,7 +17,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 // Configuration
-const sources = ["dapp-template", "dev-server"];
+const sources = ["dapp-template", "dev-server", "tic-tac-contract"];
 const sourceDir = path.resolve(__dirname, "../chain-api/src");
 const outputDir = path.resolve(__dirname, "../resources");
 
