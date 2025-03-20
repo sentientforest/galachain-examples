@@ -1,211 +1,240 @@
 import { LogEntry, Server, State, StorageAPI } from 'boardgame.io';
 import { Async } from 'boardgame.io/internal';
-import { createValidDTO, serialize } from "@gala-chain/api";
-import { CreateMatchDto, MakeMoveDto, FetchMatchDto, FetchMatchesDto } from "./dtos";
+import { createValidDTO, createValidSubmitDTO, serialize } from "@gala-chain/api";
+import { instanceToInstance, plainToInstance } from "class-transformer";
+import {
+  MatchStateLogOperation,
+  MatchStateLogEntry,
+  MatchStatePlugin,
+  MatchStateContext,
+  MatchGameState,
+  MatchState,
+  MatchStateDto,
+  MatchPlayerMetadata,
+  MatchMetadata,
+  MatchDto,
+  FetchMatchDto,
+  FetchMatchesDto,
+  FetchMatchesResDto,
+  FetchMatchIdsResDto
+} from "./dtos";
 
-export interface TicTacMatch {
-  matchId: string;
+export interface ChainstoreConfig {
+  apiUrl?: string;
+  contractPath?: string;
+  endpoints?: {
+    createMatch?: string;
+    setMatchState?: string;
+    fetchMatch?: string;
+    fetchMatches?: string;
+  };
 }
+
+/**
+* @description
+*
+* Storage Adapter for boardgame.io that uses GalaChain as a
+* backend. Influenced by the flatfile.ts example provided in the
+* boardgame.io project.
+*/
 export class Chainstore extends Async {
   private apiUrl: string;
   private contractPath: string;
+  private endpoints: {
+    createMatch: string;
+    setMatchState: string;
+    fetchMatch: string;
+    fetchMatches: string;
+  };
+  private requestQueues: { [key: string]: Promise<any> };
 
-  constructor(apiUrl?: string, contractPath?: string) {
+  constructor(config?: ChainstoreConfig) {
     super();
-    this.apiUrl = apiUrl ?? "http://localhost:3000";
-    this.contractPath = contractPath ?? "/api/product/TicTacContract";
+    this.apiUrl = config?.apiUrl ?? "http://localhost:3000";
+    this.contractPath = config?.contractPath ?? "/api/product/GameMatchContract";
+    this.endpoints = {
+      createMatch: config?.endpoints?.createMatch ?? "CreateMatch",
+      setMatchState: config?.endpoints?.setMatchState ?? "SetMatchState",
+      fetchMatch: config?.endpoints?.fetchMatch ?? "FetchMatch",
+      fetchMatches: config?.endpoints?.fetchMatches ?? "FetchMatches"
+    };
+    this.requestQueues = {};
+  }
+
+  private async chainRequest(
+    key: string,
+    request: () => Promise<any>
+  ): Promise<any> {
+    if (!(key in this.requestQueues)) this.requestQueues[key] = Promise.resolve();
+
+    // chains the current promise onto the resolution of any previous/pending promise
+    this.requestQueues[key] = this.requestQueues[key].then(request, request);
+
+    return this.requestQueues[key];
   }
 
   async connect(): Promise<void> {
-    console.log('Connected to custom storage');
+    // No-op for HTTP API
+    // todo: consider querying a health check or version endpoint of the target chain/ops deployment
+    return;
   }
 
-  async createMatch(matchId: string, {
-    initialState,
-    metadata: {
-      gameName,
-      players,
-      setupData,
-      gameover,
-      nextMatchID,
-      unlisted
-    }
-  }: StorageAPI.CreateMatchOpts): Promise<void> {
-    console.log(`createMatch for matchId: ${matchId}`);
+  async createMatch(
+    matchID: string,
+    opts: StorageAPI.CreateMatchOpts
+  ): Promise<void> {
+    const { initialState, metadata } = opts;
 
-    if (!setupData) {
-      console.log(`createMatch call missing setupData: ${setupData} --- ${JSON.stringify({ initialState, gameName, players, nextMatchID })}`);
-      return;
-    }
+    // todo: optimize these into a single call on chain
+    await this.setState(InitialStateKey(matchID), initialState);
+    await this.setState(matchID, initialState);
+    await this.setMetadata(matchID, metadata);
+  }
 
-    const dto: CreateMatchDto = setupData.dto;
+  async fetch<O extends StorageAPI.FetchOpts>(
+    matchID: string,
+    { state, log, metadata, initialState }: O
+  ): Promise<StorageAPI.FetchResult<O>> {
+    return this.chainRequest(matchID, async () => {
+      const dto = new FetchMatchDto();
+      dto.matchID = matchID;
 
-    console.log(`createMatch in chainstore: ${JSON.stringify(initialState)} --- ${gameName} --- ${JSON.stringify(setupData)} --- ${nextMatchID}`);
-
-    const url = `${this.apiUrl}${this.contractPath}/CreateMatch`;
-
-    if (!dto) {
-      console.log(`createMatch missing DTO: ${JSON.stringify(initialState)} ----- ${JSON.stringify({ gameName, setupData })}`);
-      return;
-    } else {
-      let serializedDto;
-
-      try {
-        // todo: consider instantiating and validating dto properties here
-        serializedDto = serialize(dto);
-      } catch (e) {
-        console.log(`Failed to serialize dto: ${dto} with error: ${e}`)
-        throw e;
-      }
-
-      await fetch(`${url}`, {
+      const url = `${this.apiUrl}${this.contractPath}/${this.endpoints.fetchMatch}`;
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: serializedDto
-      }).catch((e) => {
-        console.log(`Failed to createMatch in chainstore: ${e} from ${url}`);
-        throw e;
-      })
-    }
+        body: JSON.stringify(dto)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch match ${matchID} from chain`);
+      }
+
+      const chainRes = await response.json();
+
+      return chainRes.Data as StorageAPI.FetchResult<O>;
+    });
   }
 
-  /**
-   * Create a new game.
-   * @deprecated Use createMatch instead
-   */
-  createGame(matchID: string, opts: StorageAPI.CreateGameOpts): Promise<void> {
-    return this.createMatch(matchID, opts);
+  async clear() {
+    // todo: implement if needed
+    return;
   }
 
-  /**
-   * Update the game state.
-   *
-   * If passed a deltalog array, setState should append its contents to the
-   * existing log for this game.
-   */
   async setState(
     matchID: string,
     state: State,
     deltalog?: LogEntry[]
   ): Promise<void> {
-    // todo: implement deltalog array / append support
-    const dto = state.G.dto;
+    const { G, ctx } = state;
+    return await this.chainRequest(matchID, async () => {
+      const stateDto = await createValidDTO(MatchState, {
+        G: plainToInstance(MatchGameState, G),
+        ctx: plainToInstance(MatchStateContext, ctx)
+      });
 
-    const url = `${this.apiUrl}${this.contractPath}/SetMatchState`;
+      const deltalogDto: MatchStateLogEntry[] | undefined = deltalog ?
+        deltalog.map((d) => plainToInstance(MatchStateLogEntry, d)) :
+        deltalog;
 
-    if (typeof dto !== 'string') {
-      return;
-    } else {
-      await fetch(`${url}`, {
+      const dto = await createValidDTO(MatchStateDto, {
+        matchID,
+        state: stateDto,
+        deltalog: deltalogDto,
+        uniqueKey: `${matchID}-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+      })
+
+      const url = `${this.apiUrl}${this.contractPath}/${this.endpoints.setMatchState}`;
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: dto
+        body: serialize(dto)
       });
-    }
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Failed to set state for match ${matchID} on chain: ${error}`);
+      }
+    });
   }
 
-  /**
-   * Update the game metadata.
-   */
   async setMetadata(
     matchID: string,
     metadata: Server.MatchData
   ): Promise<void> {
-    // todo: implement
-  }
+    return await this.chainRequest(matchID, async () => {
+      const matchPlayers: Record<number, MatchPlayerMetadata> = {};
 
-  /**
-   * Fetch the game state.
-   */
-  async fetch<O extends StorageAPI.FetchOpts>(
-    matchID: string,
-    { state, log, metadata, initialState }: O
-  ): Promise<StorageAPI.FetchResult<O>> {
-    const dto = new FetchMatchDto();
-    dto.matchId = matchID;
+      for (const p in metadata.players) {
+        matchPlayers[p] = plainToInstance(MatchMetadata, metadata.players[p])
+      }
 
-    const url = `${this.apiUrl}${this.contractPath}/FetchMatch`;
+      const metadataDto = await createValidDTO(MatchMetadata, {
+        ...metadata,
+        players: matchPlayers
+      });
 
-    const result = {} as StorageAPI.FetchFields;
+      const dto = await createValidDTO(MatchStateDto, {
+        matchID,
+        metadata: metadataDto,
+        uniqueKey: `${matchID}-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+      });
 
-    const chainRes = await fetch(`${url}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dto)
+      const url = `${this.apiUrl}${this.contractPath}/${this.endpoints.setMatchState}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: serialize(dto)
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Failed to set state for match ${matchID} on chain: ${error}`);
+      }
     });
-
-    if (!chainRes.ok) {
-      throw new Error(`Failed to lookup match ${matchID} on chain`);
-    }
-
-    const match = await chainRes.json();
-
-    if (!match.boardgameState) {
-      return result;
-    }
-
-    // Parse the serialized state
-    const gameState = JSON.parse(match.boardgameState);
-
-    if (metadata) {
-      result.metadata = gameState.metadata;
-    }
-
-    if (initialState) {
-      result.initialState = gameState.initialState;
-    }
-
-    if (state) {
-      result.state = gameState.state;
-    }
-
-    if (log) {
-      result.log = gameState.log;
-    }
-
-    return result as StorageAPI.FetchResult<O>;
   }
 
-  /**
-   * Remove the game state.
-   */
-  async wipe(matchID: string): Promise<void> {}
+  async wipe(matchID: string): Promise<void> {
+    // todo: implement deleteState methods on chain
+    // await this.removeItem(matchID);
+    // await this.removeItem(InitialStateKey(matchID))
+    // await this.removeItem(LogKey(matchID));
+    // await this.removeItem(MetadataKey(matchID));
+    return;
+  }
 
-  /**
-   * Return all matches.
-   */
-  /* istanbul ignore next */
   async listMatches(opts?: StorageAPI.ListMatchesOpts): Promise<string[]> {
-    // todo: implement signing from server-side identity
     const dto = new FetchMatchesDto();
 
-    const url = `${this.apiUrl}${this.contractPath}/FetchMatches`;
-
-    const results: string[] = [];
-
-    const chainRes = await fetch(`${url}`, {
+    const url = `${this.apiUrl}${this.contractPath}/${this.endpoints.fetchMatches}`;
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto)
     });
 
-    if (!chainRes.ok) {
-      throw new Error(`Failed to lookup matches on chain`);
+    if (!response.ok) {
+      throw new Error('Failed to list matches from chain');
     }
 
-    const chainResults = await chainRes.json();
+    const { results } = await response.json();
 
-    return chainResults.map((m: TicTacMatch) => m.matchId)
+    return results;
   }
+}
 
-  /**
-   * Return all games.
-   *
-   * @deprecated Use listMatches instead, if implemented
-   */
-  async listGames(): Promise<string[]> {
-    const response = await fetch(`${this.apiUrl}/games`);
-    const games = await response.json();
-    return games.map((game: any) => game.matchId);
-  }
+// todo: move these values to contants / enum type
+// and rather than following a single string as in flat file, e.g
+// `${matchID}:initial` with GalaChain composite keys we use
+// separate parts ...
+export function InitialStateKey(matchID: string) {
+  return `${matchID}:initial`;
+}
+
+export function MetadataKey(matchID: string) {
+  return `${matchID}:metadata`
+}
+
+export function LogKeySuffix(matchID: string) {
+  return `${matchID}:log`;
 }

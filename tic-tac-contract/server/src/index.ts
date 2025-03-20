@@ -11,7 +11,10 @@ import { proxy } from './proxy';
 
 const server = Server({
   games: [TicTacContract],
-  db: new Chainstore(process.env.CHAIN_BASE_URL, process.env.CHAIN_CONTRACT_PATH),
+  db: new Chainstore({
+    apiUrl: process.env.CHAIN_BASE_URL,
+    contractPath: process.env.CHAIN_CONTRACT_PATH
+  }),
   origins: ['http://localhost:5173'] // Default Vite dev server port
 });
 
