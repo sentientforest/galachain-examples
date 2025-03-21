@@ -232,44 +232,6 @@ export class MatchState extends ChainCallDTO {
   ctx: MatchStateContext;
 }
 
-export class MatchStateDto extends ChainCallDTO {
-  @IsNotEmpty()
-  @IsString()
-  matchID: string;
-
-  @IsOptional()
-  @Type(() => MatchState)
-  state?: MatchState;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => MatchMetadata)
-  metadata?: MatchMetadata;
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => MatchStateLogEntry)
-  deltalog?: MatchStateLogEntry[];
-}
-
-export class CreateMatchDto extends ChainCallDTO {
-  @IsNotEmpty()
-  @IsString()
-  matchID: string;
-
-  @IsNotEmpty()
-  @IsString()
-  initialStateID: string;
-
-  @Type(() => MatchState)
-  state: MatchState;
-
-  @ValidateNested()
-  @Type(() => MatchMetadata)
-  metadata: MatchMetadata;
-}
-
 export class MatchPlayerMetadata extends ChainCallDTO {
   @IsOptional()
   @IsString()
@@ -350,6 +312,44 @@ export class MatchMetadata extends ChainCallDTO {
 
     return [matchMetadata, playerMetadataEntries];
   }
+}
+
+export class MatchStateDto extends ChainCallDTO {
+  @IsNotEmpty()
+  @IsString()
+  matchID: string;
+
+  @IsOptional()
+  @Type(() => MatchState)
+  state?: MatchState;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MatchMetadata)
+  metadata?: MatchMetadata;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MatchStateLogEntry)
+  deltalog?: MatchStateLogEntry[];
+}
+
+export class CreateMatchDto extends ChainCallDTO {
+  @IsNotEmpty()
+  @IsString()
+  matchID: string;
+
+  @IsNotEmpty()
+  @IsString()
+  initialStateID: string;
+
+  @Type(() => MatchState)
+  state: MatchState;
+
+  @ValidateNested()
+  @Type(() => MatchMetadata)
+  metadata: MatchMetadata;
 }
 
 export class MatchDto extends ChainCallDTO {

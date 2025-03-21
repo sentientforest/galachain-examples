@@ -31,7 +31,9 @@ export class TicTacContract extends GalaContract {
   @GalaTransaction({
     in: CreateMatchDto,
     out: CreateMatchDto,
-    type: GalaTransactionType.SUBMIT
+    type: GalaTransactionType.SUBMIT,
+    verifySignature: true,
+    enforceUniqueKey: true
   })
   public async CreateMatch(ctx: GalaChainContext, dto: CreateMatchDto): Promise<CreateMatchDto> {
     return createMatch(ctx, dto);
@@ -48,7 +50,9 @@ export class TicTacContract extends GalaContract {
   @GalaTransaction({
     in: JoinMatchDto,
     out: TicTacMatch,
-    type: GalaTransactionType.SUBMIT
+    type: GalaTransactionType.SUBMIT,
+    verifySignature: true,
+    enforceUniqueKey: true
   })
   public async JoinMatch(ctx: GalaChainContext, dto: JoinMatchDto): Promise<TicTacMatch> {
     return joinMatch(ctx, dto);
@@ -57,7 +61,9 @@ export class TicTacContract extends GalaContract {
   @GalaTransaction({
     in: MatchDto,
     out: TicTacMatch,
-    type: GalaTransactionType.SUBMIT
+    type: GalaTransactionType.SUBMIT,
+    verifySignature: true,
+    enforceUniqueKey: true
   })
   public async SetMatchState(ctx: GalaChainContext, dto: MatchDto): Promise<TicTacMatch> {
     return setMatchState(ctx, dto);
@@ -66,7 +72,9 @@ export class TicTacContract extends GalaContract {
   @GalaTransaction({
     in: MatchDto,
     out: MatchDto,
-    type: GalaTransactionType.SUBMIT
+    type: GalaTransactionType.SUBMIT,
+    verifySignature: true,
+    enforceUniqueKey: true
   })
   public async SetMatchMetadata(ctx: GalaChainContext, dto: MatchDto): Promise<MatchDto> {
     return setMatchMetadata(ctx, dto);
