@@ -15,7 +15,7 @@ export class TicTacMatch extends ChainObject {
 
   @ChainKey({ position: 0 })
   @IsString()
-  public matchId: string;
+  public matchID: string;
 
   @IsOptional()
   @IsString()
@@ -32,6 +32,8 @@ export class TicTacMatch extends ChainObject {
 
   public currentPlayer: PlayerSymbol;
 
+  public currentMove?: number;
+
   public createdAt: number;
 
   public lastMoveAt: number;
@@ -47,7 +49,7 @@ export class TicTacMatch extends ChainObject {
     boardgameState?: string | undefined
   ) {
     super();
-    this.matchId = matchId;
+    this.matchID = matchId;
     this.playerX = playerX;
     this.playerO = playerO;
     this.board = Array(9).fill(null);

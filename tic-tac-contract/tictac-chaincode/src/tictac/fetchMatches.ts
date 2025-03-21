@@ -3,6 +3,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  */
+import { createValidDTO } from "@gala-chain/api";
 import {
   GalaChainContext,
   getObjectsByPartialCompositeKeyWithPagination,
@@ -13,7 +14,7 @@ import { TicTacMatch } from "./TicTacMatch";
 import { FetchMatchesDto, FetchMatchesResDto } from "./dtos";
 
 export async function fetchMatches(ctx: GalaChainContext, dto: FetchMatchesDto): Promise<FetchMatchesResDto> {
-  const query = takeUntilUndefined(dto.matchId, dto.player);
+  const query = takeUntilUndefined(dto.matchID);
 
   const lookup = await getObjectsByPartialCompositeKeyWithPagination(
     ctx,
@@ -24,5 +25,8 @@ export async function fetchMatches(ctx: GalaChainContext, dto: FetchMatchesDto):
     dto.limit ?? 1000
   );
 
-  return new FetchMatchesResDto(lookup.results, lookup.metadata.bookmark);
+  return await createValidDTO(FetchMatchesResDto, {
+    results: lookup.results,
+    bookmark: lookup.metadata.bookmark
+  });
 }

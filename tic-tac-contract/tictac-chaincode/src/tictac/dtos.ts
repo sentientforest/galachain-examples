@@ -1,154 +1,445 @@
-/*
- * Copyright (c) Gala Games Inc. All rights reserved.
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- */
-import { ChainCallDTO, SubmitCallDTO } from "@gala-chain/api";
-import { Type } from "class-transformer";
+import { ChainCallDTO, createValidChainObject, deserialize, serialize } from "@gala-chain/api";
+import { Exclude, Type } from "class-transformer";
 import {
+  Allow,
   IsArray,
+  IsBoolean,
+  IsDefined,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
-  Max,
-  Min,
   ValidateIf,
   ValidateNested
 } from "class-validator";
 
 import { TicTacMatch } from "./TicTacMatch";
+import { ChainMatchMetadata, ChainMatchPlayerMetadata, GameStatus, PlayerSymbol } from "./types";
 
-export class CreateMatchDto extends SubmitCallDTO {
+export class MatchStateLogOperation extends ChainCallDTO {
+  @IsString()
+  op: string;
+
+  @IsString()
+  path: string;
+
+  @IsDefined()
+  value: unknown;
+}
+
+export class MatchStateLogEntry extends ChainCallDTO {
   @IsNotEmpty()
-  public matchId: string;
-
-  @IsOptional()
-  @IsString()
-  @ValidateIf((o) => o.playerO === undefined)
-  public playerX?: string;
-
-  @IsOptional()
-  @IsString()
-  @ValidateIf((o) => o.playerX === undefined)
-  public playerO?: string;
-
-  @IsOptional()
-  @IsString()
-  public boardgameState?: string;
-
-  constructor(
-    playerX: string | undefined,
-    playerO: string | undefined,
-    uniqueKey: string,
-    boardgameState?: string
-  ) {
-    super();
-    this.playerX = playerX;
-    this.playerO = playerO;
-    this.uniqueKey = uniqueKey;
-    this.boardgameState = boardgameState;
-  }
-}
-
-export class JoinMatchDto extends SubmitCallDTO {
-  @IsString()
-  public matchId: string;
-
-  @IsOptional()
-  @IsString()
-  @ValidateIf((o) => o.playerO === undefined)
-  public playerX?: string;
-
-  @IsOptional()
-  @IsString()
-  @ValidateIf((o) => o.playerX === undefined)
-  public playerO?: string;
-
-  @IsOptional()
-  @IsString()
-  public boardgameState?: string;
-
-  constructor(
-    matchId: string,
-    playerX: string | undefined,
-    playerO: string | undefined,
-    uniqueKey: string,
-    boardgameState?: string
-  ) {
-    super();
-    this.matchId = matchId;
-    this.playerX = playerX;
-    this.playerO = playerO;
-    this.uniqueKey = uniqueKey;
-    this.boardgameState = boardgameState;
-  }
-}
-
-export class MakeMoveDto extends SubmitCallDTO {
-  @IsString()
-  public matchId: string;
+  action: unknown;
 
   @IsNumber()
-  @Min(0)
-  @Max(8)
-  public position: number;
+  _stateID: number;
+
+  @IsNumber()
+  turn: number;
 
   @IsString()
-  @IsOptional()
-  public boardgameState?: string;
+  phase: string;
 
-  constructor(matchId: string, position: number, uniqueKey: string, boardgameState?: string) {
-    super();
-    this.matchId = matchId;
-    this.position = position;
-    this.uniqueKey = uniqueKey;
-    this.boardgameState = boardgameState;
+  @IsOptional()
+  @IsBoolean()
+  redact?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  automatic?: boolean;
+
+  @IsOptional()
+  metadata?: any;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MatchStateLogOperation)
+  patch?: MatchStateLogOperation[];
+}
+
+export class MatchStatePlugin extends ChainCallDTO {
+  @IsDefined()
+  data: any;
+
+  @IsOptional()
+  api?: any;
+}
+
+export class MatchStateContext extends ChainCallDTO {
+  @IsNumber()
+  numPlayers: number;
+
+  @IsArray()
+  playOrder: Array<string>;
+
+  @IsNumber()
+  playOrderPos: number;
+
+  @IsOptional()
+  activePlayers: null | Record<string, string>;
+
+  @IsNotEmpty()
+  currentPlayer: string;
+
+  @IsOptional()
+  @IsNumber()
+  numMoves?: number;
+
+  @IsOptional()
+  gameover?: unknown;
+
+  @IsNumber()
+  turn: number;
+
+  @IsNotEmpty()
+  phase: string;
+
+  @IsNotEmpty()
+  _internal: string;
+
+  @IsOptional()
+  @Allow()
+  _activePlayersMinMoves?: Record<string, number>;
+
+  @IsOptional()
+  @Allow()
+  _activePlayersMaxMoves?: Record<string, number>;
+
+  @IsOptional()
+  @Allow()
+  _activePlayersNumMoves?: Record<string, number>;
+
+  @IsOptional()
+  @Allow()
+  _prevActivePlayers?: Array<{
+    activePlayers: null | Record<string, string>;
+    _activePlayersMinMoves?: Record<string, number>;
+    _activePlayersMaxMoves?: Record<string, number>;
+    _activePlayersNumMoves?: Record<string, number>;
+  }>;
+
+  @IsOptional()
+  @Allow()
+  _nextActivePlayers?: unknown;
+
+  @IsOptional()
+  @Allow()
+  _random?: {
+    seed: string | number;
+  };
+
+  public serialize() {
+    const {
+      numPlayers,
+      playOrder,
+      playOrderPos,
+      activePlayers,
+      currentPlayer,
+      numMoves,
+      gameover,
+      turn,
+      phase,
+      _activePlayersMinMoves,
+      _activePlayersMaxMoves,
+      _prevActivePlayers,
+      _nextActivePlayers,
+      _random
+    } = this;
+
+    const _internal = JSON.stringify({
+      _activePlayersMinMoves,
+      _activePlayersMaxMoves,
+      _prevActivePlayers,
+      _nextActivePlayers,
+      _random
+    });
+
+    const data = {
+      numPlayers,
+      playOrder,
+      playOrderPos,
+      activePlayers,
+      currentPlayer,
+      numMoves,
+      gameover,
+      turn,
+      phase,
+      _internal
+    };
+
+    return serialize(data);
   }
+
+  public deserialize<MatchStateContext>(
+    constructor: MatchStateContext,
+    object: string | Record<string, unknown> | Record<string, unknown>[]
+  ): MatchStateContext {
+    const matchContext = deserialize(MatchStateContext, object);
+
+    const {
+      _activePlayersMinMoves,
+      _activePlayersMaxMoves,
+      _prevActivePlayers,
+      _nextActivePlayers,
+      _random
+    } = JSON.parse(matchContext._internal);
+
+    matchContext._activePlayersMinMoves = _activePlayersMinMoves;
+    matchContext._activePlayersMaxMoves = _activePlayersMaxMoves;
+    matchContext._prevActivePlayers = _prevActivePlayers;
+    matchContext._nextActivePlayers = _nextActivePlayers;
+    matchContext._random = _random;
+
+    return matchContext as MatchStateContext;
+  }
+}
+
+// @JSONSchema({ description: "Extend this class with any custom game state" })
+/**
+ * @description
+ *
+ * Extend this class with custom properties to track state specific to
+ * a turn-based game
+ */
+export class MatchGameState extends ChainCallDTO {
+  @IsOptional()
+  @IsString()
+  public playerX?: string | undefined;
+
+  @IsOptional()
+  @IsString()
+  public playerO?: string | undefined;
+
+  @IsArray()
+  public board: (PlayerSymbol | null)[];
+
+  public status: GameStatus;
+
+  public currentPlayer: PlayerSymbol;
+
+  public currentMove?: number;
+
+  public createdAt: number;
+
+  public lastMoveAt: number;
+}
+
+export class MatchState extends ChainCallDTO {
+  @Type(() => MatchGameState)
+  G: MatchGameState;
+
+  @Type(() => MatchStateContext)
+  ctx: MatchStateContext;
+}
+
+export class MatchStateDto extends ChainCallDTO {
+  @IsNotEmpty()
+  @IsString()
+  matchID: string;
+
+  @IsOptional()
+  @Type(() => MatchState)
+  state?: MatchState;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MatchMetadata)
+  metadata?: MatchMetadata;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MatchStateLogEntry)
+  deltalog?: MatchStateLogEntry[];
+}
+
+export class CreateMatchDto extends ChainCallDTO {
+  @IsNotEmpty()
+  @IsString()
+  matchID: string;
+
+  @IsNotEmpty()
+  @IsString()
+  initialStateID: string;
+
+  @Type(() => MatchState)
+  state: MatchState;
+
+  @ValidateNested()
+  @Type(() => MatchMetadata)
+  metadata: MatchMetadata;
+}
+
+export class MatchPlayerMetadata extends ChainCallDTO {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  credentials?: string;
+
+  @IsOptional()
+  @Allow()
+  data?: any;
+
+  @IsOptional()
+  @IsBoolean()
+  isConnected?: boolean;
+}
+
+export class MatchMetadata extends ChainCallDTO {
+  @IsNotEmpty()
+  gameName: string;
+
+  @Type(() => MatchPlayerMetadata)
+  players: { [id: number]: MatchPlayerMetadata };
+
+  @IsOptional()
+  setupData?: unknown;
+
+  @IsOptional()
+  gameover?: unknown;
+
+  @IsOptional()
+  @IsString()
+  nextMatchID?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  unlisted?: boolean;
+
+  @IsNumber()
+  createdAt: number;
+
+  @IsNumber()
+  updatedAt: number;
+
+  public async gameMetadataToChainEntries(
+    matchID: string
+  ): Promise<[ChainMatchMetadata, ChainMatchPlayerMetadata[]]> {
+    const matchMetadata: ChainMatchMetadata = await createValidChainObject(ChainMatchMetadata, {
+      gameName: this.gameName,
+      matchID: matchID,
+      setupData: this.setupData,
+      gameover: this.gameover,
+      nextMatchID: this.nextMatchID,
+      unlisted: this.unlisted,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt
+    });
+
+    const playerMetadataEntries: ChainMatchPlayerMetadata[] = [];
+
+    for (const playerId in this.players) {
+      const playerMetadata = await createValidChainObject(ChainMatchPlayerMetadata, {
+        gameName: this.gameName,
+        matchID: matchID,
+        playerId: playerId,
+        name: this.players[playerId].name,
+        // todo: what exactly is this "credentials" string used for in boardgame.io, should it be stored?
+        // i.e. is it sensitive or non-sensitive data? If sensitive, it shouldn't be on chain
+        // need to investigate boardgame.io library internals or client implementations more closely
+        credentials: this.players[playerId].credentials,
+        data: this.players[playerId].data,
+        isConnected: this.players[playerId].isConnected
+      });
+
+      playerMetadataEntries.push(playerMetadata);
+    }
+
+    return [matchMetadata, playerMetadataEntries];
+  }
+}
+
+export class MatchDto extends ChainCallDTO {
+  @IsNotEmpty()
+  @IsString()
+  matchID: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MatchState)
+  state?: MatchState;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MatchMetadata)
+  metadata?: MatchMetadata;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MatchStateLogEntry)
+  log?: MatchStateLogEntry[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MatchState)
+  initialState?: MatchState;
 }
 
 export class FetchMatchDto extends ChainCallDTO {
   @IsString()
-  public matchId: string;
+  public matchID: string;
+
+  @IsOptional()
+  @IsBoolean()
+  includeState?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  includeMetadata?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  includeLog?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  includeInitialState?: boolean;
 }
 
 export class FetchMatchesDto extends ChainCallDTO {
-  @IsString()
   @IsOptional()
-  public player?: string;
+  @IsString()
+  public matchID?: string;
 
-  @IsString()
   @IsOptional()
-  public matchId?: string;
-
   @IsString()
-  @IsOptional()
   public bookmark?: string;
 
   @IsOptional()
+  @IsNumber()
   public limit?: number;
-
-  constructor(player?: string, matchId?: string, bookmark?: string, limit?: number) {
-    super();
-    this.player = player;
-    this.matchId = matchId;
-    this.bookmark = bookmark;
-    this.limit = limit;
-  }
 }
 
 export class FetchMatchesResDto extends ChainCallDTO {
   @IsArray()
-  @ValidateNested({ each: true })
   @Type(() => TicTacMatch)
-  public readonly results: TicTacMatch[];
+  public results: TicTacMatch[];
 
   @IsString()
-  public readonly bookmark: string;
+  @IsOptional()
+  public bookmark?: string;
+}
 
-  constructor(results: TicTacMatch[], bookmark: string) {
-    super();
-    this.results = results;
-    this.bookmark = bookmark;
-  }
+export class FetchMatchIdsResDto extends ChainCallDTO {
+  @IsArray()
+  public results: string[];
+
+  @IsOptional()
+  @IsString()
+  public bookmark?: string;
+}
+
+// Game-specific DTOs
+export class JoinMatchDto extends ChainCallDTO {
+  @IsNotEmpty()
+  @IsString()
+  public matchID: string;
+
+  @IsOptional()
+  @Type(() => MatchState)
+  public state?: MatchState;
 }

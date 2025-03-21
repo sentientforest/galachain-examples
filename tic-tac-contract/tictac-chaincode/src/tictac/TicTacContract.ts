@@ -1,9 +1,10 @@
-/*
- * Copyright (c) Gala Games Inc. All rights reserved.
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- */
-import { GalaChainContext, GalaContract, Submit, UnsignedEvaluate } from "@gala-chain/chaincode";
+import {
+  GalaChainContext,
+  GalaContract,
+  GalaTransaction,
+  GalaTransactionType,
+  UnsignedEvaluate
+} from "@gala-chain/chaincode";
 
 import { version } from "../../package.json";
 import { TicTacMatch } from "./TicTacMatch";
@@ -14,23 +15,25 @@ import {
   FetchMatchesDto,
   FetchMatchesResDto,
   JoinMatchDto,
-  MakeMoveDto
+  MatchDto
 } from "./dtos";
 import { fetchMatch } from "./fetchMatch";
 import { fetchMatches } from "./fetchMatches";
 import { joinMatch } from "./joinMatch";
-import { makeMove } from "./makeMove";
+import { setMatchMetadata } from "./setMatchMetadata";
+import { setMatchState } from "./setMatchState";
 
 export class TicTacContract extends GalaContract {
   constructor() {
     super("TicTacContract", version);
   }
 
-  @Submit({
+  @GalaTransaction({
     in: CreateMatchDto,
-    out: TicTacMatch
+    out: CreateMatchDto,
+    type: GalaTransactionType.SUBMIT
   })
-  public async CreateMatch(ctx: GalaChainContext, dto: CreateMatchDto): Promise<TicTacMatch> {
+  public async CreateMatch(ctx: GalaChainContext, dto: CreateMatchDto): Promise<CreateMatchDto> {
     return createMatch(ctx, dto);
   }
 
@@ -38,24 +41,35 @@ export class TicTacContract extends GalaContract {
     in: FetchMatchDto,
     out: TicTacMatch
   })
-  public async FetchMatch(ctx: GalaChainContext, dto: FetchMatchDto): Promise<TicTacMatch> {
+  public async FetchMatch(ctx: GalaChainContext, dto: FetchMatchDto): Promise<MatchDto> {
     return fetchMatch(ctx, dto);
   }
 
-  @Submit({
+  @GalaTransaction({
     in: JoinMatchDto,
-    out: TicTacMatch
+    out: TicTacMatch,
+    type: GalaTransactionType.SUBMIT
   })
   public async JoinMatch(ctx: GalaChainContext, dto: JoinMatchDto): Promise<TicTacMatch> {
     return joinMatch(ctx, dto);
   }
 
-  @Submit({
-    in: MakeMoveDto,
-    out: TicTacMatch
+  @GalaTransaction({
+    in: MatchDto,
+    out: TicTacMatch,
+    type: GalaTransactionType.SUBMIT
   })
-  public async MakeMove(ctx: GalaChainContext, dto: MakeMoveDto): Promise<TicTacMatch> {
-    return makeMove(ctx, dto);
+  public async SetMatchState(ctx: GalaChainContext, dto: MatchDto): Promise<TicTacMatch> {
+    return setMatchState(ctx, dto);
+  }
+
+  @GalaTransaction({
+    in: MatchDto,
+    out: MatchDto,
+    type: GalaTransactionType.SUBMIT
+  })
+  public async SetMatchMetadata(ctx: GalaChainContext, dto: MatchDto): Promise<MatchDto> {
+    return setMatchMetadata(ctx, dto);
   }
 
   @UnsignedEvaluate({

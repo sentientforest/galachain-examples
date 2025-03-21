@@ -1,19 +1,20 @@
-/*
- * Copyright (c) Gala Games Inc. All rights reserved.
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- */
-import { GalaChainResponse, GalaChainResponseType, randomUniqueKey } from "@gala-chain/api";
+import { GalaChainResponse, GalaChainResponseType, createValidDTO, randomUniqueKey } from "@gala-chain/api";
 import { ChainClient, ChainUser, CommonContractAPI, commonContractAPI } from "@gala-chain/client";
 import { AdminChainClients, TestClients, transactionErrorKey, transactionSuccess } from "@gala-chain/test";
 import { afterAll, beforeAll, describe, expect, jest, test } from "@jest/globals";
 
 import {
   CreateMatchDto,
+  FetchMatchDto,
   FetchMatchesDto,
   FetchMatchesResDto,
   JoinMatchDto,
-  MakeMoveDto,
+  MatchDto,
+  MatchGameState,
+  MatchMetadata,
+  MatchPlayerMetadata,
+  MatchState,
+  MatchStateContext,
   TicTacMatch
 } from "../src/tictac";
 import { GameStatus, PlayerSymbol } from "../src/tictac/types";
@@ -21,12 +22,8 @@ import { GameStatus, PlayerSymbol } from "../src/tictac/types";
 jest.setTimeout(30000);
 
 describe("TicTac Contract", () => {
-  // Initial boardgame.io state for a new game
-  const initialBoardgameState = JSON.stringify({
-    cells: Array(9).fill(null),
-    currentPlayer: "X",
-    winner: null
-  });
+  const testMatchID = "e2e-test-match-id";
+  const initialStateID = `${testMatchID}-initial-state`;
   const tictacContractConfig = {
     tictac: {
       channel: "product-channel",
@@ -53,12 +50,59 @@ describe("TicTac Contract", () => {
 
   test("Create a new game", async () => {
     // Given
-    const dto = new CreateMatchDto(
-      playerX.identityKey,
-      undefined,
-      randomUniqueKey(),
-      initialBoardgameState
-    ).signed(playerX.privateKey);
+    const gameState = await createValidDTO(MatchGameState, {
+      playerX: playerX.identityKey,
+      playerO: undefined,
+      board: Array(9).fill(null),
+      currentPlayer: PlayerSymbol.X,
+      status: GameStatus.OPEN,
+      createdAt: Date.now(),
+      lastMoveAt: Date.now()
+    });
+
+    const stateContext = await createValidDTO(MatchStateContext, {
+      numPlayers: 2,
+      playOrder: [playerX.publicKey],
+      playOrderPos: 0,
+      activePlayers: null,
+      currentPlayer: playerX.publicKey,
+      numMoves: 0,
+      turn: 0,
+      phase: "play",
+      _internal: JSON.stringify({})
+    });
+
+    const matchState = await createValidDTO(MatchState, {
+      G: gameState,
+      ctx: stateContext
+    });
+
+    const playerXMetadata = await createValidDTO(MatchPlayerMetadata, {
+      name: "Player X",
+      credentials: playerX.identityKey
+    });
+
+    const playerOMetadata = await createValidDTO(MatchPlayerMetadata, {
+      name: "Player O"
+    });
+
+    const metadata = await createValidDTO(MatchMetadata, {
+      gameName: "tictac",
+      players: {
+        0: playerXMetadata,
+        1: playerOMetadata
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+
+    const dto = await createValidDTO(CreateMatchDto, {
+      matchID: testMatchID,
+      initialStateID: initialStateID,
+      state: matchState,
+      metadata: metadata,
+      uniqueKey: randomUniqueKey()
+    }).signed(playerX.privateKey);
 
     // When
     const response = await client.tictac.CreateMatch(dto);
@@ -75,28 +119,27 @@ describe("TicTac Contract", () => {
 
     // Find our newly created game
     const ourGame = pagedGames.results.find(
-      (game) => game.playerX === playerX.identityKey && game.playerO === undefined
+      (match) => match.state?.G.playerX === playerX.identityKey && match.state?.G.playerO === undefined
     );
     expect(ourGame).toBeDefined();
-    expect(ourGame).toEqual(
+    expect(ourGame?.state?.G).toEqual(
       expect.objectContaining({
         playerX: playerX.identityKey,
-        status: GameStatus.IN_PROGRESS,
-        createdAt: expect.any(Number),
+        playerO: undefined,
+        status: GameStatus.OPEN,
         currentPlayer: PlayerSymbol.X,
         board: Array(9).fill(null),
-        boardgameState: initialBoardgameState,
-        matchId: expect.any(String),
+        createdAt: expect.any(Number),
         lastMoveAt: expect.any(Number)
       })
     );
-    matchId = ourGame!.matchId;
-    matchCreatedAt = ourGame!.createdAt;
+    matchId = ourGame!.matchID;
+    matchCreatedAt = ourGame!.state?.G.createdAt || 0;
   });
 
   test("Fetch games for player X", async () => {
     // Given
-    const dto = new FetchMatchesDto().signed(playerX.privateKey);
+    const dto = await createValidDTO(FetchMatchesDto, {}).signed(playerX.privateKey);
 
     // When
     const response = await client.tictac.FetchMatches(dto);
@@ -107,120 +150,355 @@ describe("TicTac Contract", () => {
     expect(pagedGames.results.length).toBeGreaterThan(0);
 
     // Find our game
-    const ourGame = pagedGames.results.find((game) => game.playerX === playerX.identityKey);
+    const ourGame = pagedGames.results.find((match) => match.state?.G.playerX === playerX.identityKey);
     expect(ourGame).toBeDefined();
-    expect(ourGame!).toEqual(
+    expect(ourGame?.state?.G).toEqual(
       expect.objectContaining({
         playerX: playerX.identityKey,
-        status: GameStatus.IN_PROGRESS,
+        status: GameStatus.OPEN,
         currentPlayer: PlayerSymbol.X,
         board: Array(9).fill(null)
       })
     );
-    expect(ourGame?.boardgameState).toBeDefined();
   });
 
   test("Allow player O to join open game", async () => {
     // Given
-    const dto = new JoinMatchDto(matchId, undefined, playerO.identityKey, randomUniqueKey()).signed(
-      playerO.privateKey
-    );
+    const gameState = await createValidDTO(MatchGameState, {
+      playerX: playerX.identityKey,
+      playerO: playerO.identityKey,
+      board: Array(9).fill(null),
+      currentPlayer: PlayerSymbol.X,
+      status: GameStatus.IN_PROGRESS,
+      createdAt: matchCreatedAt,
+      lastMoveAt: matchCreatedAt
+    });
 
-    const expectedMatch = new TicTacMatch(
-      matchId,
-      playerX.identityKey,
-      playerO.identityKey,
-      matchCreatedAt,
-      initialBoardgameState
-    );
+    const stateContext = await createValidDTO(MatchStateContext, {
+      numPlayers: 2,
+      playOrder: [playerX.publicKey, playerO.publicKey],
+      playOrderPos: 0,
+      activePlayers: null,
+      currentPlayer: playerX.publicKey,
+      numMoves: 0,
+      turn: 0,
+      phase: "play",
+      _internal: JSON.stringify({})
+    });
+
+    const matchState = await createValidDTO(MatchState, {
+      G: gameState,
+      ctx: stateContext
+    });
+
+    const dto = await createValidDTO(JoinMatchDto, {
+      matchID: matchId,
+      state: matchState,
+      uniqueKey: randomUniqueKey()
+    }).signed(playerO.privateKey);
 
     // When
     const response = await client.tictac.JoinMatch(dto);
 
     // Then
-    expect(response).toEqual(transactionSuccess(expectedMatch));
+    expect(response).toEqual(transactionSuccess());
+
+    // Verify game state after join
+    const fetchDto = await createValidDTO(FetchMatchDto, {
+      matchID: matchId
+    }).signed(playerX.privateKey);
+    const fetchResponse = await client.tictac.FetchMatch(fetchDto);
+    const match = (fetchResponse as GalaChainResponse<MatchDto>).Data!;
+    expect(match).toBeDefined();
+    expect(match.state).toBeDefined();
+
+    const joinedGameState = match.state?.G;
+    expect(joinedGameState).toBeDefined();
+    expect(joinedGameState?.playerX).toBe(playerX.identityKey);
+    expect(joinedGameState?.playerO).toBe(playerO.identityKey);
+    expect(joinedGameState?.board).toEqual(Array(9).fill(null));
+    expect(joinedGameState?.currentPlayer).toBe(PlayerSymbol.X);
+    expect(joinedGameState?.status).toBe(GameStatus.IN_PROGRESS);
   });
 
   test("Make valid moves alternating between players", async () => {
     // Player X makes first move
-    const state1 = JSON.stringify({
-      cells: [PlayerSymbol.X, null, null, null, null, null, null, null, null],
-      currentPlayer: "O",
-      winner: null
+    const gameState = await createValidDTO(MatchGameState, {
+      playerX: playerX.identityKey,
+      playerO: playerO.identityKey,
+      board: [PlayerSymbol.X, null, null, null, null, null, null, null, null],
+      currentPlayer: PlayerSymbol.O,
+      status: GameStatus.IN_PROGRESS,
+      createdAt: matchCreatedAt,
+      lastMoveAt: matchCreatedAt
     });
-    const moveX1 = new MakeMoveDto(matchId, 0, randomUniqueKey(), state1).signed(playerX.privateKey);
-    const responseX1 = await client.tictac.MakeMove(moveX1);
-    expect(responseX1).toEqual(transactionSuccess());
+
+    const stateContext = await createValidDTO(MatchStateContext, {
+      numPlayers: 2,
+      playOrder: [playerX.publicKey, playerO.publicKey],
+      playOrderPos: 1,
+      activePlayers: null,
+      currentPlayer: playerO.publicKey,
+      numMoves: 1,
+      turn: 1,
+      phase: "play",
+      _internal: JSON.stringify({})
+    });
+
+    const matchState = await createValidDTO(MatchState, {
+      G: gameState,
+      ctx: stateContext
+    });
+
+    const moveX1 = await createValidDTO(MatchDto, {
+      matchID: matchId,
+      state: matchState,
+      uniqueKey: randomUniqueKey()
+    }).signed(playerX.privateKey);
+
+    // When
+    const response = await client.tictac.SetMatchState(moveX1);
+
+    // Then
+    expect(response).toEqual(transactionSuccess());
 
     // Player O makes second move
-    const state2 = JSON.stringify({
-      cells: [PlayerSymbol.X, null, null, null, PlayerSymbol.O, null, null, null, null],
-      currentPlayer: "X",
-      winner: null
+    const gameState2 = await createValidDTO(MatchGameState, {
+      playerX: playerX.identityKey,
+      playerO: playerO.identityKey,
+      board: [PlayerSymbol.X, null, PlayerSymbol.O, null, null, null, null, null, null],
+      currentPlayer: PlayerSymbol.X,
+      status: GameStatus.IN_PROGRESS,
+      createdAt: matchCreatedAt,
+      lastMoveAt: matchCreatedAt
     });
-    const moveO1 = new MakeMoveDto(matchId, 4, randomUniqueKey(), state2).signed(playerO.privateKey);
-    const responseO1 = await client.tictac.MakeMove(moveO1);
-    expect(responseO1).toEqual(transactionSuccess());
 
-    // Verify game state
-    const dto = new FetchMatchesDto(undefined, matchId).signed(playerX.privateKey);
-    const response = await client.tictac.FetchMatches(dto);
-    const pagedGames = (response as GalaChainResponse<FetchMatchesResDto>).Data!;
-    expect(pagedGames).toBeDefined();
-    expect(pagedGames.results.length).toBeGreaterThan(0);
-    const game = pagedGames.results[0];
+    const stateContext2 = await createValidDTO(MatchStateContext, {
+      numPlayers: 2,
+      playOrder: [playerX.publicKey, playerO.publicKey],
+      playOrderPos: 0,
+      activePlayers: null,
+      currentPlayer: playerX.publicKey,
+      numMoves: 2,
+      turn: 2,
+      phase: "play",
+      _internal: JSON.stringify({})
+    });
 
-    expect(game.board[0]).toBe(PlayerSymbol.X);
-    expect(game.board[4]).toBe(PlayerSymbol.O);
-    expect(game.currentPlayer).toBe(PlayerSymbol.X);
-    expect(game.status).toBe(GameStatus.IN_PROGRESS);
-    expect(game.boardgameState).toBe(state2);
+    const matchState2 = await createValidDTO(MatchState, {
+      G: gameState2,
+      ctx: stateContext2
+    });
+
+    const moveO1 = await createValidDTO(MatchDto, {
+      matchID: matchId,
+      state: matchState2,
+      uniqueKey: randomUniqueKey()
+    }).signed(playerO.privateKey);
+
+    // When
+    const response2 = await client.tictac.SetMatchState(moveO1);
+
+    // Then
+    expect(response2).toEqual(transactionSuccess());
+
+    // Verify final game state
+    const fetchDto = await createValidDTO(FetchMatchDto, {
+      matchID: matchId
+    }).signed(playerX.privateKey);
+    const fetchResponse = await client.tictac.FetchMatch(fetchDto);
+    const match = (fetchResponse as GalaChainResponse<MatchDto>).Data!;
+    expect(match).toBeDefined();
+    expect(match.state).toBeDefined();
+
+    const finalGameState = match.state?.G;
+    expect(finalGameState).toBeDefined();
+    expect(finalGameState?.board).toEqual([
+      PlayerSymbol.X,
+      null,
+      PlayerSymbol.O,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]);
+    expect(finalGameState?.currentPlayer).toBe(PlayerSymbol.X);
+    expect(finalGameState?.status).toBe(GameStatus.IN_PROGRESS);
   });
 
   test("Fail to make move out of turn", async () => {
     // Given - Player O tries to move when it's X's turn
-    const dto = new MakeMoveDto(matchId, 1, randomUniqueKey()).signed(playerO.privateKey);
+    const invalidGameState = await createValidDTO(MatchGameState, {
+      playerX: playerX.identityKey,
+      playerO: playerO.identityKey,
+      board: [PlayerSymbol.X, PlayerSymbol.O, null, null, PlayerSymbol.O, null, null, null, null],
+      currentPlayer: PlayerSymbol.X, // It's X's turn but O is trying to move
+      status: GameStatus.IN_PROGRESS,
+      createdAt: matchCreatedAt,
+      lastMoveAt: matchCreatedAt
+    });
 
-    // When
-    const response = await client.tictac.MakeMove(dto);
+    const stateContext = await createValidDTO(MatchStateContext, {
+      numPlayers: 2,
+      playOrder: [playerX.publicKey, playerO.publicKey],
+      playOrderPos: 0,
+      activePlayers: null,
+      currentPlayer: playerX.publicKey, // Should be X's turn
+      numMoves: 3,
+      turn: 3,
+      phase: "play",
+      _internal: JSON.stringify({})
+    });
+
+    const invalidMatchState = await createValidDTO(MatchState, {
+      G: invalidGameState,
+      ctx: stateContext
+    });
+
+    const invalidMove = await createValidDTO(MatchDto, {
+      matchID: matchId,
+      state: invalidMatchState,
+      uniqueKey: randomUniqueKey()
+    }).signed(playerO.privateKey);
+
+    // When - Player O tries to move
+    const response = await client.tictac.SetMatchState(invalidMove);
 
     // Then
-    expect(response).toEqual(transactionErrorKey("INVALID_MOVE"));
+    expect(response.Status).toBe(GalaChainResponseType.Error);
+    expect(response.ErrorKey).toBe(transactionErrorKey("INVALID_MOVE"));
   });
 
   test("Fail to make move in occupied position", async () => {
-    // Given - Player X tries to move to an occupied position
-    const dto = new MakeMoveDto(matchId, 0, randomUniqueKey()).signed(playerX.privateKey);
+    // Given - Player X tries to move in position already taken by O
+    const invalidGameState = await createValidDTO(MatchGameState, {
+      playerX: playerX.identityKey,
+      playerO: playerO.identityKey,
+      board: [PlayerSymbol.X, PlayerSymbol.O, null, null, null, null, null, null, null],
+      currentPlayer: PlayerSymbol.X,
+      status: GameStatus.IN_PROGRESS,
+      createdAt: matchCreatedAt,
+      lastMoveAt: matchCreatedAt
+    });
+
+    const stateContext = await createValidDTO(MatchStateContext, {
+      numPlayers: 2,
+      playOrder: [playerX.publicKey, playerO.publicKey],
+      playOrderPos: 0,
+      activePlayers: null,
+      currentPlayer: playerX.publicKey,
+      numMoves: 2,
+      turn: 2,
+      phase: "play",
+      _internal: JSON.stringify({})
+    });
+
+    const matchState = await createValidDTO(MatchState, {
+      G: invalidGameState,
+      ctx: stateContext
+    });
+
+    // X tries to move in position 1 which is already taken by O
+    const invalidMove = await createValidDTO(MatchDto, {
+      matchID: matchId,
+      state: matchState
+    }).signed(playerX.privateKey);
 
     // When
-    const response = await client.tictac.MakeMove(dto);
+    const response = await client.tictac.SetMatchState(invalidMove);
 
     // Then
-    expect(response).toEqual(transactionErrorKey("INVALID_MOVE"));
+    expect(response.Status).toBe(GalaChainResponseType.Error);
+    expect(response.ErrorKey).toBe(transactionErrorKey("INVALID_MOVE"));
   });
 
   test("Complete game with X winning", async () => {
     // X plays center-right
-    const state3 = JSON.stringify({
-      cells: [PlayerSymbol.X, PlayerSymbol.X, null, null, PlayerSymbol.O, null, null, null, null],
-      currentPlayer: "O",
-      winner: null
+    const gameStateX2 = await createValidDTO(MatchGameState, {
+      playerX: playerX.identityKey,
+      playerO: playerO.identityKey,
+      board: [PlayerSymbol.X, PlayerSymbol.X, null, null, PlayerSymbol.O, null, null, null, null],
+      currentPlayer: PlayerSymbol.O,
+      status: GameStatus.IN_PROGRESS,
+      createdAt: matchCreatedAt,
+      lastMoveAt: matchCreatedAt
     });
-    const moveX2 = new MakeMoveDto(matchId, 1, randomUniqueKey(), state3).signed(playerX.privateKey);
-    await client.tictac.MakeMove(moveX2);
 
-    // O plays bottom-center
-    const state4 = JSON.stringify({
-      cells: [PlayerSymbol.X, PlayerSymbol.X, null, null, PlayerSymbol.O, null, null, PlayerSymbol.O, null],
-      currentPlayer: "X",
-      winner: null
+    const stateContextX2 = await createValidDTO(MatchStateContext, {
+      numPlayers: 2,
+      playOrder: [playerX.publicKey, playerO.publicKey],
+      playOrderPos: 1,
+      activePlayers: null,
+      currentPlayer: playerO.publicKey,
+      numMoves: 3,
+      turn: 3,
+      phase: "play",
+      _internal: JSON.stringify({})
     });
-    const moveO2 = new MakeMoveDto(matchId, 7, randomUniqueKey(), state4).signed(playerO.privateKey);
-    await client.tictac.MakeMove(moveO2);
 
-    // X completes the win with top-right
-    const state5 = JSON.stringify({
-      cells: [
+    const matchStateX2 = await createValidDTO(MatchState, {
+      G: gameStateX2,
+      ctx: stateContextX2
+    });
+
+    const moveX2 = await createValidDTO(MatchDto, {
+      matchID: matchId,
+      state: matchStateX2
+    }).signed(playerX.privateKey);
+
+    // When
+    const responseX2 = await client.tictac.SetMatchState(moveX2);
+
+    // Then
+    expect(responseX2).toEqual(transactionSuccess());
+
+    // O plays bottom-right
+    const gameStateO2 = await createValidDTO(MatchGameState, {
+      playerX: playerX.identityKey,
+      playerO: playerO.identityKey,
+      board: [PlayerSymbol.X, PlayerSymbol.X, null, null, PlayerSymbol.O, null, null, null, PlayerSymbol.O],
+      currentPlayer: PlayerSymbol.X,
+      status: GameStatus.IN_PROGRESS,
+      createdAt: matchCreatedAt,
+      lastMoveAt: matchCreatedAt
+    });
+
+    const stateContextO2 = await createValidDTO(MatchStateContext, {
+      numPlayers: 2,
+      playOrder: [playerX.publicKey, playerO.publicKey],
+      playOrderPos: 0,
+      activePlayers: null,
+      currentPlayer: playerX.publicKey,
+      numMoves: 4,
+      turn: 4,
+      phase: "play",
+      _internal: JSON.stringify({})
+    });
+
+    const matchStateO2 = await createValidDTO(MatchState, {
+      G: gameStateO2,
+      ctx: stateContextO2
+    });
+
+    const moveO2 = await createValidDTO(MatchDto, {
+      matchID: matchId,
+      state: matchStateO2,
+      uniqueKey: randomUniqueKey()
+    }).signed(playerO.privateKey);
+
+    // When
+    const responseO2 = await client.tictac.SetMatchState(moveO2);
+
+    // Then
+    expect(responseO2).toEqual(transactionSuccess());
+
+    // X plays right for the win
+    const winningGameState = await createValidDTO(MatchGameState, {
+      playerX: playerX.identityKey,
+      playerO: playerO.identityKey,
+      board: [
         PlayerSymbol.X,
         PlayerSymbol.X,
         PlayerSymbol.X,
@@ -228,36 +506,76 @@ describe("TicTac Contract", () => {
         PlayerSymbol.O,
         null,
         null,
-        PlayerSymbol.O,
-        null
+        null,
+        PlayerSymbol.O
       ],
-      currentPlayer: "O",
-      winner: "X"
+      currentPlayer: PlayerSymbol.O,
+      status: GameStatus.X_WON,
+      createdAt: matchCreatedAt,
+      lastMoveAt: matchCreatedAt
     });
-    const moveX3 = new MakeMoveDto(matchId, 2, randomUniqueKey(), state5).signed(playerX.privateKey);
-    const responseX3 = await client.tictac.MakeMove(moveX3);
-    expect(responseX3).toEqual(transactionSuccess());
 
-    // Verify game state
-    const dto = new FetchMatchesDto(undefined, matchId).signed(playerX.privateKey);
-    const response = await client.tictac.FetchMatches(dto);
-    const pagedGames = (response as GalaChainResponse<FetchMatchesResDto>).Data!;
-    expect(pagedGames).toBeDefined();
-    expect(pagedGames.results.length).toBeGreaterThan(0);
-    const game = pagedGames.results[0];
+    const winningStateContext = await createValidDTO(MatchStateContext, {
+      numPlayers: 2,
+      playOrder: [playerX.publicKey, playerO.publicKey],
+      playOrderPos: 1,
+      activePlayers: null,
+      currentPlayer: playerO.publicKey,
+      numMoves: 5,
+      turn: 5,
+      phase: "play",
+      _internal: JSON.stringify({})
+    });
 
-    expect(game.status).toBe(GameStatus.X_WON);
-    expect(game.board[0]).toBe(PlayerSymbol.X);
-    expect(game.board[1]).toBe(PlayerSymbol.X);
-    expect(game.board[2]).toBe(PlayerSymbol.X);
-    expect(game.boardgameState).toBe(state5);
+    const winningMatchState = await createValidDTO(MatchState, {
+      G: winningGameState,
+      ctx: winningStateContext
+    });
+
+    const winningMove = await createValidDTO(MatchDto, {
+      matchID: matchId,
+      state: winningMatchState
+    }).signed(playerX.privateKey);
+
+    // When
+    const winningResponse = await client.tictac.SetMatchState(winningMove);
+
+    // Then
+    expect(winningResponse).toEqual(transactionSuccess());
+
+    // Verify final game state
+    const fetchDto = await createValidDTO(FetchMatchDto, {
+      matchID: matchId
+    }).signed(playerX.privateKey);
+    const fetchResponse = await client.tictac.FetchMatch(fetchDto);
+    const match = (fetchResponse as GalaChainResponse<MatchDto>).Data!;
+    expect(match).toBeDefined();
+    expect(match.state).toBeDefined();
+
+    const finalGameState = match.state?.G;
+    expect(finalGameState).toBeDefined();
+    expect(finalGameState?.board).toEqual([
+      PlayerSymbol.X,
+      PlayerSymbol.X,
+      PlayerSymbol.X,
+      null,
+      PlayerSymbol.O,
+      null,
+      null,
+      null,
+      PlayerSymbol.O
+    ]);
+    expect(finalGameState?.currentPlayer).toBe(PlayerSymbol.O);
+    expect(finalGameState?.status).toBe(GameStatus.X_WON);
   });
 });
 
 interface TicTacContractAPI {
-  CreateMatch(dto: CreateMatchDto): Promise<GalaChainResponse<void>>;
+  CreateMatch(dto: CreateMatchDto): Promise<GalaChainResponse<CreateMatchDto>>;
   JoinMatch(dto: JoinMatchDto): Promise<GalaChainResponse<TicTacMatch>>;
-  MakeMove(dto: MakeMoveDto): Promise<GalaChainResponse<void>>;
+  SetMatchState(dto: MatchDto): Promise<GalaChainResponse<TicTacMatch>>;
+  SetMatchMetadata(dto: MatchDto): Promise<GalaChainResponse<MatchDto>>;
+  FetchMatch(dto: FetchMatchDto): Promise<GalaChainResponse<MatchDto>>;
   FetchMatches(dto: FetchMatchesDto): Promise<GalaChainResponse<FetchMatchesResDto>>;
 }
 
@@ -266,15 +584,23 @@ function tictacContractAPI(client: ChainClient): TicTacContractAPI & CommonContr
     ...commonContractAPI(client),
 
     CreateMatch(dto: CreateMatchDto) {
-      return client.submitTransaction("CreateMatch", dto) as Promise<GalaChainResponse<void>>;
+      return client.submitTransaction("CreateMatch", dto) as Promise<GalaChainResponse<CreateMatchDto>>;
     },
 
     JoinMatch(dto: JoinMatchDto) {
       return client.submitTransaction("JoinMatch", dto) as Promise<GalaChainResponse<TicTacMatch>>;
     },
 
-    MakeMove(dto: MakeMoveDto) {
-      return client.submitTransaction("MakeMove", dto) as Promise<GalaChainResponse<void>>;
+    SetMatchState(dto: MatchDto) {
+      return client.submitTransaction("SetMatchState", dto) as Promise<GalaChainResponse<TicTacMatch>>;
+    },
+
+    SetMatchMetadata(dto: MatchDto) {
+      return client.submitTransaction("SetMatchMetadata", dto) as Promise<GalaChainResponse<MatchDto>>;
+    },
+
+    FetchMatch(dto: FetchMatchDto) {
+      return client.evaluateTransaction("FetchMatch", dto) as Promise<GalaChainResponse<MatchDto>>;
     },
 
     FetchMatches(dto: FetchMatchesDto) {
