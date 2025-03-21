@@ -25,7 +25,7 @@ export async function setMatchState(ctx: GalaChainContext, dto: MatchStateDto): 
   const matchKey = TicTacMatch.getCompositeKeyFromParts(TicTacMatch.INDEX_KEY, [matchID]);
   const match = await getObjectByKey(ctx, TicTacMatch, matchKey);
 
-  if (currentMove) {
+  if (typeof currentMove === "number") {
     match.makeMove(player, currentMove, timestamp);
   } else {
     throw new ValidationFailedError(

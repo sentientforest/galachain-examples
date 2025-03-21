@@ -41,7 +41,7 @@ export class TicTacContract extends GalaContract {
 
   @UnsignedEvaluate({
     in: FetchMatchDto,
-    out: TicTacMatch
+    out: MatchDto
   })
   public async FetchMatch(ctx: GalaChainContext, dto: FetchMatchDto): Promise<MatchDto> {
     return fetchMatch(ctx, dto);

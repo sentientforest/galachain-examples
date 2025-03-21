@@ -119,13 +119,13 @@ describe("TicTac Contract", () => {
 
     // Find our newly created game
     const ourGame = pagedGames.results.find(
-      (match) => match.state?.G.playerX === playerX.identityKey && match.state?.G.playerO === undefined
+      (match) => match.playerX === playerX.identityKey && match.playerO === undefined
     );
     expect(ourGame).toBeDefined();
-    expect(ourGame?.state?.G).toEqual(
+    expect(ourGame).toEqual(
       expect.objectContaining({
+        matchID: testMatchID,
         playerX: playerX.identityKey,
-        playerO: undefined,
         status: GameStatus.OPEN,
         currentPlayer: PlayerSymbol.X,
         board: Array(9).fill(null),
@@ -134,7 +134,8 @@ describe("TicTac Contract", () => {
       })
     );
     matchId = ourGame!.matchID;
-    matchCreatedAt = ourGame!.state?.G.createdAt || 0;
+    matchCreatedAt = ourGame!.createdAt || 0;
+    expect(matchId).toEqual(testMatchID);
   });
 
   test("Fetch games for player X", async () => {
@@ -150,10 +151,11 @@ describe("TicTac Contract", () => {
     expect(pagedGames.results.length).toBeGreaterThan(0);
 
     // Find our game
-    const ourGame = pagedGames.results.find((match) => match.state?.G.playerX === playerX.identityKey);
+    const ourGame = pagedGames.results.find((match) => match.playerX === playerX.identityKey);
     expect(ourGame).toBeDefined();
-    expect(ourGame?.state?.G).toEqual(
+    expect(ourGame).toEqual(
       expect.objectContaining({
+        matchID: testMatchID,
         playerX: playerX.identityKey,
         status: GameStatus.OPEN,
         currentPlayer: PlayerSymbol.X,
@@ -203,22 +205,13 @@ describe("TicTac Contract", () => {
     // Then
     expect(response).toEqual(transactionSuccess());
 
-    // Verify game state after join
-    const fetchDto = await createValidDTO(FetchMatchDto, {
-      matchID: matchId
-    }).signed(playerX.privateKey);
-    const fetchResponse = await client.tictac.FetchMatch(fetchDto);
-    const match = (fetchResponse as GalaChainResponse<MatchDto>).Data!;
+    const match = response.Data;
     expect(match).toBeDefined();
-    expect(match.state).toBeDefined();
-
-    const joinedGameState = match.state?.G;
-    expect(joinedGameState).toBeDefined();
-    expect(joinedGameState?.playerX).toBe(playerX.identityKey);
-    expect(joinedGameState?.playerO).toBe(playerO.identityKey);
-    expect(joinedGameState?.board).toEqual(Array(9).fill(null));
-    expect(joinedGameState?.currentPlayer).toBe(PlayerSymbol.X);
-    expect(joinedGameState?.status).toBe(GameStatus.IN_PROGRESS);
+    expect(match?.playerX).toBe(playerX.identityKey);
+    expect(match?.playerO).toBe(playerO.identityKey);
+    expect(match?.board).toEqual(Array(9).fill(null));
+    expect(match?.currentPlayer).toBe(PlayerSymbol.X);
+    expect(match?.status).toBe(GameStatus.IN_PROGRESS);
   });
 
   test("Make valid moves alternating between players", async () => {
@@ -227,7 +220,8 @@ describe("TicTac Contract", () => {
       playerX: playerX.identityKey,
       playerO: playerO.identityKey,
       board: [PlayerSymbol.X, null, null, null, null, null, null, null, null],
-      currentPlayer: PlayerSymbol.O,
+      currentPlayer: PlayerSymbol.X,
+      currentMove: 0,
       status: GameStatus.IN_PROGRESS,
       createdAt: matchCreatedAt,
       lastMoveAt: matchCreatedAt
@@ -238,7 +232,7 @@ describe("TicTac Contract", () => {
       playOrder: [playerX.publicKey, playerO.publicKey],
       playOrderPos: 1,
       activePlayers: null,
-      currentPlayer: playerO.publicKey,
+      currentPlayer: playerX.publicKey,
       numMoves: 1,
       turn: 1,
       phase: "play",
@@ -266,8 +260,9 @@ describe("TicTac Contract", () => {
     const gameState2 = await createValidDTO(MatchGameState, {
       playerX: playerX.identityKey,
       playerO: playerO.identityKey,
-      board: [PlayerSymbol.X, null, PlayerSymbol.O, null, null, null, null, null, null],
-      currentPlayer: PlayerSymbol.X,
+      board: [PlayerSymbol.X, null, null, null, PlayerSymbol.O, null, null, null, null],
+      currentPlayer: PlayerSymbol.O,
+      currentMove: 4,
       status: GameStatus.IN_PROGRESS,
       createdAt: matchCreatedAt,
       lastMoveAt: matchCreatedAt
@@ -278,7 +273,7 @@ describe("TicTac Contract", () => {
       playOrder: [playerX.publicKey, playerO.publicKey],
       playOrderPos: 0,
       activePlayers: null,
-      currentPlayer: playerX.publicKey,
+      currentPlayer: playerO.publicKey,
       numMoves: 2,
       turn: 2,
       phase: "play",
@@ -302,30 +297,31 @@ describe("TicTac Contract", () => {
     // Then
     expect(response2).toEqual(transactionSuccess());
 
-    // Verify final game state
+    // Verify current game state
     const fetchDto = await createValidDTO(FetchMatchDto, {
       matchID: matchId
     }).signed(playerX.privateKey);
     const fetchResponse = await client.tictac.FetchMatch(fetchDto);
+    expect(fetchResponse).toEqual(transactionSuccess());
     const match = (fetchResponse as GalaChainResponse<MatchDto>).Data!;
     expect(match).toBeDefined();
     expect(match.state).toBeDefined();
 
-    const finalGameState = match.state?.G;
-    expect(finalGameState).toBeDefined();
-    expect(finalGameState?.board).toEqual([
+    const currentGameState = match.state?.G;
+    expect(currentGameState).toBeDefined();
+    expect(currentGameState?.board).toEqual([
       PlayerSymbol.X,
+      null,
+      null,
       null,
       PlayerSymbol.O,
       null,
       null,
       null,
-      null,
-      null,
       null
     ]);
-    expect(finalGameState?.currentPlayer).toBe(PlayerSymbol.X);
-    expect(finalGameState?.status).toBe(GameStatus.IN_PROGRESS);
+    expect(currentGameState?.currentPlayer).toBe(PlayerSymbol.X);
+    expect(currentGameState?.status).toBe(GameStatus.IN_PROGRESS);
   });
 
   test("Fail to make move out of turn", async () => {
@@ -334,7 +330,8 @@ describe("TicTac Contract", () => {
       playerX: playerX.identityKey,
       playerO: playerO.identityKey,
       board: [PlayerSymbol.X, PlayerSymbol.O, null, null, PlayerSymbol.O, null, null, null, null],
-      currentPlayer: PlayerSymbol.X, // It's X's turn but O is trying to move
+      currentPlayer: PlayerSymbol.O, // It's X's turn but O is trying to move
+      currentMove: 1,
       status: GameStatus.IN_PROGRESS,
       createdAt: matchCreatedAt,
       lastMoveAt: matchCreatedAt
@@ -345,7 +342,7 @@ describe("TicTac Contract", () => {
       playOrder: [playerX.publicKey, playerO.publicKey],
       playOrderPos: 0,
       activePlayers: null,
-      currentPlayer: playerX.publicKey, // Should be X's turn
+      currentPlayer: playerO.publicKey, // Should be X's turn
       numMoves: 3,
       turn: 3,
       phase: "play",
@@ -367,8 +364,7 @@ describe("TicTac Contract", () => {
     const response = await client.tictac.SetMatchState(invalidMove);
 
     // Then
-    expect(response.Status).toBe(GalaChainResponseType.Error);
-    expect(response.ErrorKey).toBe(transactionErrorKey("INVALID_MOVE"));
+    expect(response).toEqual(transactionErrorKey("INVALID_MOVE"));
   });
 
   test("Fail to make move in occupied position", async () => {
@@ -376,8 +372,9 @@ describe("TicTac Contract", () => {
     const invalidGameState = await createValidDTO(MatchGameState, {
       playerX: playerX.identityKey,
       playerO: playerO.identityKey,
-      board: [PlayerSymbol.X, PlayerSymbol.O, null, null, null, null, null, null, null],
+      board: [PlayerSymbol.X, null, null, null, PlayerSymbol.O, null, null, null, null],
       currentPlayer: PlayerSymbol.X,
+      currentMove: 4,
       status: GameStatus.IN_PROGRESS,
       createdAt: matchCreatedAt,
       lastMoveAt: matchCreatedAt
@@ -403,15 +400,15 @@ describe("TicTac Contract", () => {
     // X tries to move in position 1 which is already taken by O
     const invalidMove = await createValidDTO(MatchDto, {
       matchID: matchId,
-      state: matchState
+      state: matchState,
+      uniqueKey: randomUniqueKey()
     }).signed(playerX.privateKey);
 
     // When
     const response = await client.tictac.SetMatchState(invalidMove);
 
     // Then
-    expect(response.Status).toBe(GalaChainResponseType.Error);
-    expect(response.ErrorKey).toBe(transactionErrorKey("INVALID_MOVE"));
+    expect(response).toEqual(transactionErrorKey("INVALID_MOVE"));
   });
 
   test("Complete game with X winning", async () => {
@@ -420,7 +417,8 @@ describe("TicTac Contract", () => {
       playerX: playerX.identityKey,
       playerO: playerO.identityKey,
       board: [PlayerSymbol.X, PlayerSymbol.X, null, null, PlayerSymbol.O, null, null, null, null],
-      currentPlayer: PlayerSymbol.O,
+      currentPlayer: PlayerSymbol.X,
+      currentMove: 1,
       status: GameStatus.IN_PROGRESS,
       createdAt: matchCreatedAt,
       lastMoveAt: matchCreatedAt
@@ -445,7 +443,8 @@ describe("TicTac Contract", () => {
 
     const moveX2 = await createValidDTO(MatchDto, {
       matchID: matchId,
-      state: matchStateX2
+      state: matchStateX2,
+      uniqueKey: randomUniqueKey()
     }).signed(playerX.privateKey);
 
     // When
@@ -459,7 +458,8 @@ describe("TicTac Contract", () => {
       playerX: playerX.identityKey,
       playerO: playerO.identityKey,
       board: [PlayerSymbol.X, PlayerSymbol.X, null, null, PlayerSymbol.O, null, null, null, PlayerSymbol.O],
-      currentPlayer: PlayerSymbol.X,
+      currentPlayer: PlayerSymbol.O,
+      currentMove: 8,
       status: GameStatus.IN_PROGRESS,
       createdAt: matchCreatedAt,
       lastMoveAt: matchCreatedAt
@@ -509,7 +509,8 @@ describe("TicTac Contract", () => {
         null,
         PlayerSymbol.O
       ],
-      currentPlayer: PlayerSymbol.O,
+      currentPlayer: PlayerSymbol.X,
+      currentMove: 2,
       status: GameStatus.X_WON,
       createdAt: matchCreatedAt,
       lastMoveAt: matchCreatedAt
@@ -534,7 +535,8 @@ describe("TicTac Contract", () => {
 
     const winningMove = await createValidDTO(MatchDto, {
       matchID: matchId,
-      state: winningMatchState
+      state: winningMatchState,
+      uniqueKey: randomUniqueKey()
     }).signed(playerX.privateKey);
 
     // When
@@ -565,7 +567,7 @@ describe("TicTac Contract", () => {
       null,
       PlayerSymbol.O
     ]);
-    expect(finalGameState?.currentPlayer).toBe(PlayerSymbol.O);
+    expect(finalGameState?.currentPlayer).toBe(PlayerSymbol.X);
     expect(finalGameState?.status).toBe(GameStatus.X_WON);
   });
 });

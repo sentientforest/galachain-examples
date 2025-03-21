@@ -33,27 +33,7 @@ export async function fetchMatch(ctx: GalaChainContext, dto: FetchMatchDto): Pro
 
   // Get metadata
   const metadataKey = ChainMatchMetadata.getCompositeKeyFromParts(ChainMatchMetadata.INDEX_KEY, [matchID]);
-  const metadata = await getObjectByKey(ctx, ChainMatchMetadata, metadataKey);
-
-  // Get player metadata
-  const playerMetadataEntries = await getObjectsByPartialCompositeKey(
-    ctx,
-    ChainMatchPlayerMetadata.INDEX_KEY,
-    [matchID],
-    ChainMatchPlayerMetadata
-  );
-
-  // Convert player metadata entries to MatchPlayerMetadata instances
-  const players: { [id: number]: MatchPlayerMetadata } = {};
-  for (const entry of playerMetadataEntries) {
-    const playerMetadata = await createValidDTO(MatchPlayerMetadata, {
-      name: entry.name,
-      credentials: entry.credentials,
-      data: entry.data,
-      isConnected: entry.isConnected
-    });
-    players[parseInt(entry.playerId)] = playerMetadata;
-  }
+  const metadata = await getObjectByKey(ctx, ChainMatchMetadata, metadataKey).catch(() => undefined);
 
   // Create MatchGameState
   const gameState = await createValidDTO(MatchGameState, {
@@ -87,24 +67,47 @@ export async function fetchMatch(ctx: GalaChainContext, dto: FetchMatchDto): Pro
     ctx: stateContext
   });
 
-  // Create MatchMetadata
-  const matchMetadata = await createValidDTO(MatchMetadata, {
-    gameName: metadata.gameName,
-    players,
-    setupData: metadata.setupData,
-    gameover: metadata.gameover,
-    nextMatchID: metadata.nextMatchID,
-    unlisted: metadata.unlisted,
-    createdAt: metadata.createdAt,
-    updatedAt: metadata.updatedAt
-  });
-
   // Create final MatchDto
   const matchDto = await createValidDTO(MatchDto, {
     matchID,
-    state,
-    metadata: matchMetadata
+    state
   });
+
+  if (metadata) {
+    // Get player metadata
+    const playerMetadataEntries: ChainMatchPlayerMetadata[] = await getObjectsByPartialCompositeKey(
+      ctx,
+      ChainMatchPlayerMetadata.INDEX_KEY,
+      [matchID],
+      ChainMatchPlayerMetadata
+    );
+
+    // Convert player metadata entries to MatchPlayerMetadata instances
+    const players: { [id: number]: MatchPlayerMetadata } = {};
+    for (const entry of playerMetadataEntries) {
+      const playerMetadata = await createValidDTO(MatchPlayerMetadata, {
+        name: entry.name,
+        credentials: entry.credentials,
+        data: entry.data,
+        isConnected: entry.isConnected
+      });
+      players[parseInt(entry.playerId)] = playerMetadata;
+    }
+
+    // Create MatchMetadata
+    const matchMetadata = await createValidDTO(MatchMetadata, {
+      gameName: metadata.gameName,
+      players,
+      setupData: metadata.setupData,
+      gameover: metadata.gameover,
+      nextMatchID: metadata.nextMatchID,
+      unlisted: metadata.unlisted,
+      createdAt: metadata.createdAt,
+      updatedAt: metadata.updatedAt
+    });
+
+    matchDto.metadata = matchMetadata;
+  }
 
   return matchDto;
 }
