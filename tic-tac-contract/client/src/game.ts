@@ -1,6 +1,8 @@
 import { Game, Move } from 'boardgame.io';
 
 export interface TicTacContractState {
+  playerX?: string | undefined;
+  playerO?: string | undefined;
   currentMove: number | null;
   board: (string | null)[];
   winner: string | null;

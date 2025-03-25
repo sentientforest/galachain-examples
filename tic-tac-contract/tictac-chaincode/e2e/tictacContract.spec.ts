@@ -73,8 +73,10 @@ describe("TicTac Contract", () => {
     });
 
     const matchState = await createValidDTO(MatchState, {
+      _stateID: null,
       G: gameState,
-      ctx: stateContext
+      ctx: stateContext,
+      plugins: {}
     });
 
     const playerXMetadata = await createValidDTO(MatchPlayerMetadata, {
@@ -189,8 +191,10 @@ describe("TicTac Contract", () => {
     });
 
     const matchState = await createValidDTO(MatchState, {
+      _stateID: null,
       G: gameState,
-      ctx: stateContext
+      ctx: stateContext,
+      plugins: {}
     });
 
     const dto = await createValidDTO(JoinMatchDto, {
@@ -215,12 +219,12 @@ describe("TicTac Contract", () => {
   });
 
   test("Make valid moves alternating between players", async () => {
-    // Player X makes first move
+    // Player X made first move
     const gameState = await createValidDTO(MatchGameState, {
       playerX: playerX.identityKey,
       playerO: playerO.identityKey,
       board: [PlayerSymbol.X, null, null, null, null, null, null, null, null],
-      currentPlayer: PlayerSymbol.X,
+      currentPlayer: PlayerSymbol.O,
       currentMove: 0,
       status: GameStatus.IN_PROGRESS,
       createdAt: matchCreatedAt,
@@ -232,7 +236,7 @@ describe("TicTac Contract", () => {
       playOrder: [playerX.publicKey, playerO.publicKey],
       playOrderPos: 1,
       activePlayers: null,
-      currentPlayer: playerX.publicKey,
+      currentPlayer: playerO.publicKey,
       numMoves: 1,
       turn: 1,
       phase: "play",
@@ -240,8 +244,10 @@ describe("TicTac Contract", () => {
     });
 
     const matchState = await createValidDTO(MatchState, {
+      _stateID: 1,
       G: gameState,
-      ctx: stateContext
+      ctx: stateContext,
+      plugins: {}
     });
 
     const moveX1 = await createValidDTO(MatchDto, {
@@ -261,7 +267,7 @@ describe("TicTac Contract", () => {
       playerX: playerX.identityKey,
       playerO: playerO.identityKey,
       board: [PlayerSymbol.X, null, null, null, PlayerSymbol.O, null, null, null, null],
-      currentPlayer: PlayerSymbol.O,
+      currentPlayer: PlayerSymbol.X,
       currentMove: 4,
       status: GameStatus.IN_PROGRESS,
       createdAt: matchCreatedAt,
@@ -273,7 +279,7 @@ describe("TicTac Contract", () => {
       playOrder: [playerX.publicKey, playerO.publicKey],
       playOrderPos: 0,
       activePlayers: null,
-      currentPlayer: playerO.publicKey,
+      currentPlayer: playerX.publicKey,
       numMoves: 2,
       turn: 2,
       phase: "play",
@@ -281,8 +287,10 @@ describe("TicTac Contract", () => {
     });
 
     const matchState2 = await createValidDTO(MatchState, {
+      _stateID: 1,
       G: gameState2,
-      ctx: stateContext2
+      ctx: stateContext2,
+      plugins: {}
     });
 
     const moveO1 = await createValidDTO(MatchDto, {
@@ -299,7 +307,9 @@ describe("TicTac Contract", () => {
 
     // Verify current game state
     const fetchDto = await createValidDTO(FetchMatchDto, {
-      matchID: matchId
+      matchID: matchId,
+      includeState: true,
+      includeMetadata: true
     }).signed(playerX.privateKey);
     const fetchResponse = await client.tictac.FetchMatch(fetchDto);
     expect(fetchResponse).toEqual(transactionSuccess());
@@ -330,7 +340,7 @@ describe("TicTac Contract", () => {
       playerX: playerX.identityKey,
       playerO: playerO.identityKey,
       board: [PlayerSymbol.X, PlayerSymbol.O, null, null, PlayerSymbol.O, null, null, null, null],
-      currentPlayer: PlayerSymbol.O, // It's X's turn but O is trying to move
+      currentPlayer: PlayerSymbol.X, // It's X's turn but O is trying to move
       currentMove: 1,
       status: GameStatus.IN_PROGRESS,
       createdAt: matchCreatedAt,
@@ -350,8 +360,10 @@ describe("TicTac Contract", () => {
     });
 
     const invalidMatchState = await createValidDTO(MatchState, {
+      _stateID: 2,
       G: invalidGameState,
-      ctx: stateContext
+      ctx: stateContext,
+      plugins: {}
     });
 
     const invalidMove = await createValidDTO(MatchDto, {
@@ -364,7 +376,7 @@ describe("TicTac Contract", () => {
     const response = await client.tictac.SetMatchState(invalidMove);
 
     // Then
-    expect(response).toEqual(transactionErrorKey("INVALID_MOVE"));
+    expect(response).toEqual(transactionErrorKey("MOVE_OUT_OF_TURN"));
   });
 
   test("Fail to make move in occupied position", async () => {
@@ -393,8 +405,10 @@ describe("TicTac Contract", () => {
     });
 
     const matchState = await createValidDTO(MatchState, {
+      _stateID: 2,
       G: invalidGameState,
-      ctx: stateContext
+      ctx: stateContext,
+      plugins: {}
     });
 
     // X tries to move in position 1 which is already taken by O
@@ -417,7 +431,7 @@ describe("TicTac Contract", () => {
       playerX: playerX.identityKey,
       playerO: playerO.identityKey,
       board: [PlayerSymbol.X, PlayerSymbol.X, null, null, PlayerSymbol.O, null, null, null, null],
-      currentPlayer: PlayerSymbol.X,
+      currentPlayer: PlayerSymbol.O,
       currentMove: 1,
       status: GameStatus.IN_PROGRESS,
       createdAt: matchCreatedAt,
@@ -437,8 +451,10 @@ describe("TicTac Contract", () => {
     });
 
     const matchStateX2 = await createValidDTO(MatchState, {
+      _stateID: 2,
       G: gameStateX2,
-      ctx: stateContextX2
+      ctx: stateContextX2,
+      plugins: {}
     });
 
     const moveX2 = await createValidDTO(MatchDto, {
@@ -458,7 +474,7 @@ describe("TicTac Contract", () => {
       playerX: playerX.identityKey,
       playerO: playerO.identityKey,
       board: [PlayerSymbol.X, PlayerSymbol.X, null, null, PlayerSymbol.O, null, null, null, PlayerSymbol.O],
-      currentPlayer: PlayerSymbol.O,
+      currentPlayer: PlayerSymbol.X,
       currentMove: 8,
       status: GameStatus.IN_PROGRESS,
       createdAt: matchCreatedAt,
@@ -478,8 +494,10 @@ describe("TicTac Contract", () => {
     });
 
     const matchStateO2 = await createValidDTO(MatchState, {
+      _stateID: 2,
       G: gameStateO2,
-      ctx: stateContextO2
+      ctx: stateContextO2,
+      plugins: {}
     });
 
     const moveO2 = await createValidDTO(MatchDto, {
@@ -509,7 +527,7 @@ describe("TicTac Contract", () => {
         null,
         PlayerSymbol.O
       ],
-      currentPlayer: PlayerSymbol.X,
+      currentPlayer: PlayerSymbol.O,
       currentMove: 2,
       status: GameStatus.X_WON,
       createdAt: matchCreatedAt,
@@ -529,8 +547,10 @@ describe("TicTac Contract", () => {
     });
 
     const winningMatchState = await createValidDTO(MatchState, {
+      _stateID: 2,
       G: winningGameState,
-      ctx: winningStateContext
+      ctx: winningStateContext,
+      plugins: {}
     });
 
     const winningMove = await createValidDTO(MatchDto, {
@@ -547,7 +567,9 @@ describe("TicTac Contract", () => {
 
     // Verify final game state
     const fetchDto = await createValidDTO(FetchMatchDto, {
-      matchID: matchId
+      matchID: matchId,
+      includeState: true,
+      includeMetadata: true
     }).signed(playerX.privateKey);
     const fetchResponse = await client.tictac.FetchMatch(fetchDto);
     const match = (fetchResponse as GalaChainResponse<MatchDto>).Data!;
@@ -567,7 +589,7 @@ describe("TicTac Contract", () => {
       null,
       PlayerSymbol.O
     ]);
-    expect(finalGameState?.currentPlayer).toBe(PlayerSymbol.X);
+    expect(finalGameState?.currentPlayer).toBe(PlayerSymbol.O);
     expect(finalGameState?.status).toBe(GameStatus.X_WON);
   });
 });

@@ -79,21 +79,30 @@ export class TicTacMatch extends ChainObject {
     return GameStatus.IN_PROGRESS;
   }
 
-  public canMakeMove(player: string, position: number): boolean {
-    return (
-      this.status === GameStatus.IN_PROGRESS &&
-      position >= 0 &&
-      position < 9 &&
-      this.board[position] === null &&
-      ((this.currentPlayer === PlayerSymbol.X && player === this.playerX) ||
-        (this.currentPlayer === PlayerSymbol.O && player === this.playerO))
-    );
-  }
+  public canMakeMove(player: string, position: number): void {
+    // todo: collect and combine errors into single throw
+    // const moveViolations = [];
+    if (this.status !== GameStatus.IN_PROGRESS) {
+      throw new MatchStatusError(player, position, this.currentPlayer, this.status);
+    }
 
-  public makeMove(player: string, position: number, timestamp: number): void {
-    if (!this.canMakeMove(player, position)) {
+    if (position < 0 || 8 < position) {
+      throw new PositionOutOfRangeError(player, position, this.currentPlayer, this.status);
+    }
+
+    if (this.board[position] !== null) {
       throw new InvalidMoveError(player, position, this.currentPlayer, this.status);
     }
+
+    if (this.currentPlayer !== player) {
+      throw new MoveOutOfTurnError(player, position, this.currentPlayer, this.status);
+    }
+  }
+
+  public makeMove(nextPlayer: string, position: number, timestamp: number): void {
+    const currentPlayer = this.currentPlayer;
+
+    this.canMakeMove(currentPlayer, position);
 
     this.board[position] = this.currentPlayer;
     this.lastMoveAt = timestamp;
@@ -102,15 +111,47 @@ export class TicTacMatch extends ChainObject {
     const newStatus = this.checkWinner();
     if (newStatus !== GameStatus.IN_PROGRESS) {
       this.status = newStatus;
-    } else {
-      // Switch current player
-      this.currentPlayer = this.currentPlayer === PlayerSymbol.X ? PlayerSymbol.O : PlayerSymbol.X;
+    }
+
+    // Switch current player
+    this.currentPlayer = this.currentPlayer === PlayerSymbol.X ? PlayerSymbol.O : PlayerSymbol.X;
+
+    if (this.currentPlayer !== nextPlayer) {
+      throw new MoveOutOfTurnError(nextPlayer, position, currentPlayer, newStatus);
     }
   }
 }
 
-class InvalidMoveError extends DefaultError {
+export class InvalidMoveError extends DefaultError {
   constructor(player: string, position: number, currentPlayer: PlayerSymbol, status: GameStatus) {
-    super("Invalid move", { player, position, currentPlayer, status });
+    super(`Invalid move: ${position} by ${player}. currentPlayer: ${currentPlayer}`, {
+      player,
+      position,
+      currentPlayer,
+      status
+    });
+  }
+}
+
+export class MatchStatusError extends DefaultError {
+  constructor(player: string, position: number, currentPlayer: PlayerSymbol, status: GameStatus) {
+    super(`Invalid match status: ${status}`, { player, position, currentPlayer, status });
+  }
+}
+
+export class PositionOutOfRangeError extends DefaultError {
+  constructor(player: string, position: number, currentPlayer: PlayerSymbol, status: GameStatus) {
+    super(`Position out of range: ${position} by ${player}.`, { player, position, currentPlayer, status });
+  }
+}
+
+export class MoveOutOfTurnError extends DefaultError {
+  constructor(player: string, position: number, currentPlayer: PlayerSymbol, status: GameStatus) {
+    super(`Move out of turn: currentPlayer: ${currentPlayer}, move by: ${player} to position ${position}`, {
+      player,
+      position,
+      currentPlayer,
+      status
+    });
   }
 }

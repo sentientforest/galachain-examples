@@ -104,11 +104,14 @@ const projectId = import.meta.env.VITE_PROJECT_ID ?? 'tic-tac-contract';
 
 const matchID = ref('');
 const joinMatchId = ref('');
+const loading = ref(false);
 const currentPlayer = ref<string>('0');
 const board = ref<(string | null)[]>(Array(9).fill(null));
 const winner = ref<string | null>(null);
 const isDraw = ref(false);
 const playerID = ref<string>('0');
+const playerName = ref<string>('');
+const playerCredentials = ref<string>('');
 const client = ref<TicTacContractClient | null>(null);
 
 const isWinner = computed(() => winner.value === playerID.value);
@@ -117,7 +120,7 @@ const currentSymbol = computed(() => playerID.value === '0' ? 'X' : 'O');
 let unsubscribe: Function | undefined;
 let boardgameState: string | undefined;
 
-const initializeClient = (matchID: string, initialPlayerId: string, dto?: string) => {
+const initializeClient = (matchID: string, initialPlayerId: string, credentials: string) => {
   playerID.value = initialPlayerId;
   console.log('Initializing client with:', { matchID, initialPlayerId });
 
@@ -125,7 +128,7 @@ const initializeClient = (matchID: string, initialPlayerId: string, dto?: string
     game: TicTacContract,
     matchID: matchID,
     playerID: playerID.value,
-
+    credentials: credentials,
     debug: false,
     multiplayer: SocketIO({ server: serverBaseUrl })
   });
@@ -174,6 +177,7 @@ const initializeClient = (matchID: string, initialPlayerId: string, dto?: string
 };
 
 const startNewMatch = async () => {
+  loading.value = true;
   try {
     let dto;
 
@@ -183,11 +187,14 @@ const startNewMatch = async () => {
     } catch (e) {
       // todo: error messaging
       console.log(`Failed to confirm dto signging or stringify signed to: ${e}`);
+      loading.value = false;
       return;
     }
 
     const createGameUrl = `${serverBaseUrl}/games/tic-tac-contract/create`;
     console.log(`POST to /create endpont: ${createGameUrl}`);
+
+    const matchCreatorID = '0';
 
     const response = await fetch(createGameUrl, {
       method: 'POST',
@@ -200,9 +207,28 @@ const startNewMatch = async () => {
 
     matchID.value = data.matchID;
 
-    initializeClient(matchID.value, '0');
+    const joinResponse = await fetch(`${serverBaseUrl}/games/tic-tac-contract/${data.matchID}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        playerName: walletAddress.value,
+        playerID: matchCreatorID,
+        data: {
+          authorization: serialize(dto)
+        }
+      })
+    });
+
+    const joinData = await joinResponse.json();
+    console.log(`join response: ${JSON.stringify(joinData)}`);
+
+    playerCredentials.value = joinData.playerCredentials;
+
+    initializeClient(matchID.value, matchCreatorID, playerCredentials.value);
+    loading.value = false;
   } catch (error) {
     console.error('Failed to start new game:', error);
+    loading.value = false;
   }
 };
 
@@ -236,10 +262,32 @@ const resetGame = () => {
   }
 };
 
-const joinMatch = () => {
+const joinMatch = async () => {
   if (!joinMatchId.value) return;
   matchID.value = joinMatchId.value;
-  initializeClient(joinMatchId.value, '1');
+
+  const joiningPlayerID = '1';
+
+  const dto = await confirmJoinMatch();
+
+  const joinResponse = await fetch(`${serverBaseUrl}/games/tic-tac-contract/${matchID.value}/join`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      playerName: walletAddress.value,
+      playerID: joiningPlayerID,
+      data: {
+        authorization: serialize(dto)
+      }
+    })
+  });
+
+  const joinData = await joinResponse.json();
+  console.log(`join response: ${JSON.stringify(joinData)}`);
+
+  playerCredentials.value = joinData.playerCredentials;
+
+  initializeClient(joinMatchId.value, joiningPlayerID, playerCredentials.value);
   joinMatchId.value = '';
 };
 
@@ -266,7 +314,7 @@ async function confirmCreateMatch() {
   return signedDto;
 }
 
-async function confirmJoinGame() {
+async function confirmJoinMatch() {
   // todo: for now, assume match creator is always "X"
   // and joiner is "O"
   // this could be extended to allow for choice between "X" and "O"
@@ -274,10 +322,6 @@ async function confirmJoinGame() {
     matchID: matchID.value,
     playerO: walletAddress.value,
     uniqueKey: `${projectId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`
-  }
-
-  if (typeof boardgameState === "string") {
-    dto.boardgameState = boardgameState;
   }
 
   const signedDto = await metamaskClient.sign("JoinMatch", dto);

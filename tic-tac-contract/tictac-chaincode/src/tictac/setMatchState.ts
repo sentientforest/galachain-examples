@@ -7,13 +7,12 @@ import { MatchStateDto } from "./dtos";
 import { ChainMatchStateContext, ChainMatchStateLogEntry, ChainMatchStatePlugins } from "./types";
 
 export async function setMatchState(ctx: GalaChainContext, dto: MatchStateDto): Promise<TicTacMatch> {
-  const player = ctx.callingUser;
   const timestamp = ctx.txUnixTime;
   const { matchID, state, metadata, deltalog } = dto;
 
   if (!state && !Array.isArray(deltalog)) {
     throw new ValidationFailedError(
-      `Calling user ${player} submitted no state object nor a deltaLog for setMatchState call: ${dto.serialize()}`
+      `Calling user ${ctx.callingUser} submitted no state object nor a deltaLog for setMatchState call: ${dto.serialize()}`
     );
   }
 
@@ -22,8 +21,9 @@ export async function setMatchState(ctx: GalaChainContext, dto: MatchStateDto): 
 
   if (state) {
     const currentMove = state.G.currentMove;
+    const player = state.G.currentPlayer;
 
-    if (typeof currentMove === "number") {
+    if (typeof currentMove === "number" && player !== undefined) {
       match.makeMove(player, currentMove, timestamp);
       // todo: else if (?) { ...iterate deltalog for currentmove }
     } else {
