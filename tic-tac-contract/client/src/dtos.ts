@@ -8,7 +8,7 @@ import { Type } from "class-transformer";
 import { IsArray, IsNumber, IsOptional, IsString, Max, Min, ValidateIf, ValidateNested } from "class-validator";
 
 interface TicTacMatch {
-  matchId: string;
+  matchID: string;
   playerX: string;
   playerO: string;
   board: (PlayerSymbol | null)[];
@@ -34,7 +34,7 @@ export enum PlayerSymbol {
 // ref https://grugbrain.dev/
 
 export interface ICreateMatchDto {
-  matchId: string;
+  matchID: string;
   playerX?: string;
   playerO?: string;
   boardgameState?: string;
@@ -42,7 +42,7 @@ export interface ICreateMatchDto {
 }
 
 export interface IJoinMatchDto {
-  matchId: string;
+  matchID: string;
   playerX?: string;
   playerO?: string;
   boardgameState?: string;
@@ -50,7 +50,7 @@ export interface IJoinMatchDto {
 }
 
 export interface IMakeMoveDto {
-  matchId: string;
+  matchID: string;
   position: number;
   boardgameState?: string;
   uniqueKey?: string;
@@ -58,7 +58,7 @@ export interface IMakeMoveDto {
 
 export interface IFetchMatchesDto {
   player?: string;
-  matchId?: string;
+  matchID?: string;
   bookmark?: string;
   limit?: number;
   uniqueKey?: string;

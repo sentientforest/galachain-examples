@@ -3,14 +3,20 @@ import { GalaChainContext, putChainObject } from "@gala-chain/chaincode";
 
 import { TicTacMatch } from "./TicTacMatch";
 import { CreateMatchDto } from "./dtos";
-import { ChainMatchMetadata, ChainMatchPlayerMetadata, ChainMatchStateContext } from "./types";
+import {
+  ChainMatchMetadata,
+  ChainMatchPlayerMetadata,
+  ChainMatchStateContext,
+  ChainMatchStatePlugins
+} from "./types";
 
 export async function createMatch(ctx: GalaChainContext, dto: CreateMatchDto): Promise<CreateMatchDto> {
   const { matchID, initialStateID, state, metadata } = dto;
+  const { _stateID, plugins } = state;
 
   const matchMetadata = await createValidChainObject(ChainMatchMetadata, {
-    gameName: metadata.gameName,
     matchID: matchID,
+    gameName: metadata.gameName,
     setupData: metadata.setupData,
     gameover: metadata.gameover,
     nextMatchID: metadata.nextMatchID,
@@ -23,9 +29,9 @@ export async function createMatch(ctx: GalaChainContext, dto: CreateMatchDto): P
 
   for (const playerId in metadata.players) {
     const playerMetadata = await createValidChainObject(ChainMatchPlayerMetadata, {
-      gameName: metadata.gameName,
       matchID: matchID,
       playerId: playerId,
+      gameName: metadata.gameName,
       name: metadata.players[playerId].name,
       // todo: what exactly is this "credentials" string used for in boardgame.io, should it be stored?
       // i.e. is it sensitive or non-sensitive data? If sensitive, it shouldn't be on chain
@@ -44,8 +50,14 @@ export async function createMatch(ctx: GalaChainContext, dto: CreateMatchDto): P
   });
 
   const matchGame = await createValidChainObject(TicTacMatch, {
+    _stateID,
     matchID,
     ...state.G
+  });
+
+  const matchPlugins = await createValidChainObject(ChainMatchStatePlugins, {
+    matchID: matchID,
+    plugins
   });
 
   const initialMatchCtx = await createValidChainObject(ChainMatchStateContext, {
@@ -54,8 +66,14 @@ export async function createMatch(ctx: GalaChainContext, dto: CreateMatchDto): P
   });
 
   const initialMatchGame = await createValidChainObject(TicTacMatch, {
+    _stateID: _stateID,
     matchID: initialStateID,
     ...state.G
+  });
+
+  const initialMatchPlugins = await createValidChainObject(ChainMatchStatePlugins, {
+    matchID: initialStateID,
+    plugins
   });
 
   await putChainObject(ctx, initialMatchGame);
@@ -66,6 +84,8 @@ export async function createMatch(ctx: GalaChainContext, dto: CreateMatchDto): P
   for (const playerMetadata of playerMetadataEntries) {
     await putChainObject(ctx, playerMetadata);
   }
+  await putChainObject(ctx, matchPlugins);
+  await putChainObject(ctx, initialMatchPlugins);
 
   return dto;
 }

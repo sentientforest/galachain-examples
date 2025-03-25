@@ -15,19 +15,23 @@ import {
 } from "@gala-chain/client/lib/src/generic/ChainUser";
 
 const adminPrivateKeyPath = process.env.CHAIN_ADMIN_SECRET_KEY_PATH ?? '';
-let adminPrivateKeyString: string;
+let adminPrivateKeyString: string = "";
 
 try {
   adminPrivateKeyString = fs.readFileSync(adminPrivateKeyPath).toString();
 } catch (e) {
   console.log(
     `Failed to read admin key file for identity management: ${adminPrivateKeyPath ?? "undefined"}. ` +
-    `Provide file path in env CHAIN_ADMIN_SECRET_KEY to use /identities/registerEthUser etc.`
+    `Provide file path in env CHAIN_ADMIN_SECRET_KEY to use /identities/registerEthUser etc. ${e}`
   );
 }
 
 const apiBase = process.env.CHAIN_API ?? 'http://localhost:3000';
 const channel = process.env.PRODUCT_CHANNEL ?? 'product';
+
+export function adminSigningKey() {
+  return adminPrivateKeyString;
+}
 
 export async function registerRandomEthUser(ctx: Context) {
   if (!adminPrivateKeyString) {

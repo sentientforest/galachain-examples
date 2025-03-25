@@ -5,7 +5,7 @@
  */
 import { ChainKey, ChainObject, DefaultError } from "@gala-chain/api";
 import { Exclude } from "class-transformer";
-import { IsArray, IsOptional, IsString } from "class-validator";
+import { IsArray, IsNumber, IsOptional, IsString } from "class-validator";
 
 import { GameStatus, PlayerSymbol } from "./types";
 
@@ -16,6 +16,10 @@ export class TicTacMatch extends ChainObject {
   @ChainKey({ position: 0 })
   @IsString()
   public matchID: string;
+
+  @IsOptional()
+  @IsNumber()
+  public _stateID: number | null;
 
   @IsOptional()
   @IsString()
@@ -38,16 +42,7 @@ export class TicTacMatch extends ChainObject {
 
   public lastMoveAt: number;
 
-  // Serialized boardgame.io state
-  public boardgameState?: string | undefined;
-
-  constructor(
-    matchId: string,
-    playerX: string | undefined,
-    playerO: string | undefined,
-    createdAt: number,
-    boardgameState?: string | undefined
-  ) {
+  constructor(matchId: string, playerX: string | undefined, playerO: string | undefined, createdAt: number) {
     super();
     this.matchID = matchId;
     this.playerX = playerX;
@@ -57,7 +52,6 @@ export class TicTacMatch extends ChainObject {
     this.currentPlayer = PlayerSymbol.X;
     this.createdAt = createdAt;
     this.lastMoveAt = createdAt;
-    this.boardgameState = boardgameState;
   }
 
   private checkWinner(): GameStatus {

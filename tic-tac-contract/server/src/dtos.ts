@@ -1,9 +1,4 @@
-/*
- * Copyright (c) Gala Games Inc. All rights reserved.
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- */
-import { deserialize, ChainCallDTO, SubmitCallDTO, serialize } from "@gala-chain/api";
+import { createValidChainObject, deserialize, ChainCallDTO, SubmitCallDTO, serialize } from "@gala-chain/api";
 import { Exclude, Type } from "class-transformer";
 import {
   Allow,
@@ -18,7 +13,42 @@ import {
   ValidateIf,
   ValidateNested
 } from "class-validator";
-import { ActionShape, ActivePlayers, ActivePlayersArg, PlayerID } from "boardgame.io";
+import { GameStatus, PlayerSymbol, TicTacMatch } from "./TicTacMatch";
+import { ChainMatchMetadata, ChainMatchPlayerMetadata } from "./types";
+
+// todo: something in this import fails if react is not installed
+// import { ActionShape, ActivePlayers, ActivePlayersArg, PlayerID } from "boardgame.io";
+// begin port from boardgame.io types
+export type StageName = string;
+export type PlayerID = string;
+export type StageArg =
+  | StageName
+  | {
+      stage?: StageName;
+      /** @deprecated Use `minMoves` and `maxMoves` instead. */
+      moveLimit?: number;
+      minMoves?: number;
+      maxMoves?: number;
+    };
+
+export interface ActivePlayers {
+  [playerID: string]: StageName;
+}
+export type ActivePlayersArg =
+  | PlayerID[]
+  | {
+      currentPlayer?: StageArg;
+      others?: StageArg;
+      all?: StageArg;
+      value?: Record<PlayerID, StageArg>;
+      minMoves?: number;
+      maxMoves?: number;
+      /** @deprecated Use `minMoves` and `maxMoves` instead. */
+      moveLimit?: number;
+      revert?: boolean;
+      next?: ActivePlayersArg;
+    };
+// end port of types
 
 export class MatchStateLogOperation extends ChainCallDTO {
   @IsString()
@@ -33,11 +63,11 @@ export class MatchStateLogOperation extends ChainCallDTO {
 
 export class MatchStateLogEntry extends ChainCallDTO {
   @IsNotEmpty()
-  action:
-    | ActionShape.MakeMove
-    | ActionShape.GameEvent
-    | ActionShape.Undo
-    | ActionShape.Redo;
+  action: unknown;
+    // | ActionShape.MakeMove
+    // | ActionShape.GameEvent
+    // | ActionShape.Undo
+    // | ActionShape.Redo;
 
   @IsNumber()
   _stateID: number;
@@ -45,8 +75,9 @@ export class MatchStateLogEntry extends ChainCallDTO {
   @IsNumber()
   turn: number;
 
+  @IsOptional()
   @IsString()
-  phase: string;
+  phase?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -78,16 +109,16 @@ export class MatchStateContext extends ChainCallDTO {
   numPlayers: number;
 
   @IsArray()
-  playOrder: Array<PlayerID>;
+  playOrder: Array<string>;
 
   @IsNumber()
   playOrderPos: number;
 
   @IsOptional()
-  activePlayers: null | ActivePlayers;
+  activePlayers: null | Record<string, string>;
 
   @IsNotEmpty()
-  currentPlayer: PlayerID;
+  currentPlayer: string;
 
   @IsOptional()
   @IsNumber()
@@ -99,11 +130,13 @@ export class MatchStateContext extends ChainCallDTO {
   @IsNumber()
   turn: number;
 
-  @IsNotEmpty()
-  phase: string;
+  @IsOptional()
+  @IsString()
+  phase?: string;
 
-  @IsNotEmpty()
-  _internal: string;
+  @IsOptional()
+  @IsString()
+  _internal?: string;
 
   @Exclude()
   _activePlayersMinMoves?: Record<PlayerID, number>;
@@ -129,76 +162,6 @@ export class MatchStateContext extends ChainCallDTO {
   _random?: {
     seed: string | number;
   };
-
-  public serialize() {
-    const {
-      numPlayers,
-      playOrder,
-      playOrderPos,
-      activePlayers,
-      currentPlayer,
-      numMoves,
-      gameover,
-      turn,
-      phase,
-      _activePlayersMinMoves,
-      _activePlayersMaxMoves,
-      _prevActivePlayers,
-      _nextActivePlayers,
-      _random
-    } = this;
-
-    const _internal = JSON.stringify({
-      _activePlayersMinMoves,
-      _activePlayersMaxMoves,
-      _prevActivePlayers,
-      _nextActivePlayers,
-      _random
-    });
-
-    const data = {
-      numPlayers,
-      playOrder,
-      playOrderPos,
-      activePlayers,
-      currentPlayer,
-      numMoves,
-      gameover,
-      turn,
-      phase,
-      _internal
-    }
-
-    return serialize(data);
-  }
-
-  public deserialize<T>(
-    constructor: MatchStateContext,
-    object: string | Record<string, unknown> | Record<string, unknown>[]
-  ): MatchStateContext {
-    const matchContext = deserialize(MatchStateContext, object);
-
-    const {
-      _activePlayersMinMoves,
-      _activePlayersMaxMoves,
-      _prevActivePlayers,
-      _nextActivePlayers,
-      _random
-    } = JSON.parse(matchContext._internal);
-
-    matchContext._activePlayersMinMoves = _activePlayersMinMoves;
-    matchContext._activePlayersMaxMoves = _activePlayersMaxMoves;
-    matchContext._prevActivePlayers = _prevActivePlayers;
-    matchContext._nextActivePlayers = _nextActivePlayers;
-    matchContext._random = _random;
-
-    return matchContext;
-  }
-}
-
-export enum PlayerSymbol {
-  X = "X",
-  O = "O"
 }
 
 // @JSONSchema({ description: "Extend this class with any custom game state" })
@@ -209,48 +172,43 @@ export enum PlayerSymbol {
 * a turn-based game
 */
 export class MatchGameState extends ChainCallDTO {
-  @IsArray()
-  @Type(() => String)
-  board: (PlayerSymbol | null)[];
-
+  @IsNumber()
+  @IsOptional()
   @IsString()
-  currentPlayer: PlayerSymbol;
+  public playerX?: string | undefined;
 
-  constructor() {
-    super();
-    this.board = Array(9).fill(null);
-    this.currentPlayer = PlayerSymbol.X;
-  }
+  @IsOptional()
+  @IsString()
+  public playerO?: string | undefined;
+
+  @IsArray()
+  public board: (PlayerSymbol | null)[];
+
+  public status: GameStatus;
+
+  public currentPlayer: PlayerSymbol;
+
+  public currentMove?: number;
+
+  public createdAt: number;
+
+  public lastMoveAt: number;
 }
 
 export class MatchState extends ChainCallDTO {
+  @IsNumber()
+  _stateID: number;
+
   @Type(() => MatchGameState)
   G: MatchGameState;
 
   @Type(() => MatchStateContext)
   ctx: MatchStateContext;
+
+  @IsDefined()
+  plugins: Record<string, MatchStatePlugin>;
 }
 
-export class MatchStateDto extends ChainCallDTO {
-  @IsNotEmpty()
-  @IsString()
-  matchID: string;
-
-  @IsOptional()
-  @Type(() => MatchState)
-  state?: MatchState
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => MatchMetadata)
-  metadata?: MatchMetadata;
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => MatchStateLogEntry)
-  deltalog?: MatchStateLogEntry[]
-}
 
 export class MatchPlayerMetadata extends ChainCallDTO {
   @IsOptional()
@@ -278,10 +236,10 @@ export class MatchMetadata extends ChainCallDTO {
   players: { [id: number]: MatchPlayerMetadata };
 
   @IsOptional()
-  setupData?: any;
+  setupData?: unknown;
 
   @IsOptional()
-  gameover?: any;
+  gameover?: unknown;
 
   @IsOptional()
   @IsString()
@@ -296,6 +254,81 @@ export class MatchMetadata extends ChainCallDTO {
 
   @IsNumber()
   updatedAt: number;
+
+  public async gameMetadataToChainEntries(
+    matchID: string
+  ): Promise<[ChainMatchMetadata, ChainMatchPlayerMetadata[]]> {
+    const matchMetadata: ChainMatchMetadata = await createValidChainObject(ChainMatchMetadata, {
+      gameName: this.gameName,
+      matchID: matchID,
+      setupData: this.setupData,
+      gameover: this.gameover,
+      nextMatchID: this.nextMatchID,
+      unlisted: this.unlisted,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt
+    });
+
+    const playerMetadataEntries: ChainMatchPlayerMetadata[] = [];
+
+    for (const playerId in this.players) {
+      const playerMetadata = await createValidChainObject(ChainMatchPlayerMetadata, {
+        gameName: this.gameName,
+        matchID: matchID,
+        playerId: playerId,
+        name: this.players[playerId].name,
+        // todo: what exactly is this "credentials" string used for in boardgame.io, should it be stored?
+        // i.e. is it sensitive or non-sensitive data? If sensitive, it shouldn't be on chain
+        // need to investigate boardgame.io library internals or client implementations more closely
+        credentials: this.players[playerId].credentials,
+        data: this.players[playerId].data,
+        isConnected: this.players[playerId].isConnected
+      });
+
+      playerMetadataEntries.push(playerMetadata);
+    }
+
+    return [matchMetadata, playerMetadataEntries];
+  }
+}
+
+export class MatchStateDto extends ChainCallDTO {
+  @IsNotEmpty()
+  @IsString()
+  matchID: string;
+
+  @IsOptional()
+  @Type(() => MatchState)
+  state?: MatchState
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MatchMetadata)
+  metadata?: MatchMetadata;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MatchStateLogEntry)
+  deltalog?: MatchStateLogEntry[]
+}
+
+
+export class CreateMatchDto extends ChainCallDTO {
+  @IsNotEmpty()
+  @IsString()
+  matchID: string;
+
+  @IsNotEmpty()
+  @IsString()
+  initialStateID: string;
+
+  @Type(() => MatchState)
+  state: MatchState;
+
+  @ValidateNested()
+  @Type(() => MatchMetadata)
+  metadata: MatchMetadata;
 }
 
 export class MatchDto extends ChainCallDTO {
@@ -362,8 +395,8 @@ export class FetchMatchesDto extends ChainCallDTO {
 
 export class FetchMatchesResDto extends ChainCallDTO {
   @IsArray()
-  @Type(() => MatchDto)
-  public results: MatchDto[];
+  @Type(() => TicTacMatch)
+  public results: TicTacMatch[];
 
   @IsString()
   @IsOptional()
@@ -381,29 +414,7 @@ export class FetchMatchIdsResDto extends ChainCallDTO {
 
 // Game-specific DTOs
 export class JoinMatchDto extends ChainCallDTO {
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
   public matchID: string;
-
-  @IsOptional()
-  @IsString()
-  @ValidateIf((o) => o.playerO === undefined)
-  public playerX?: string;
-
-  @IsOptional()
-  @IsString()
-  @ValidateIf((o) => o.playerX === undefined)
-  public playerO?: string;
-
-  constructor(
-    matchID: string,
-    playerX: string | undefined,
-    playerO: string | undefined,
-    uniqueKey: string,
-  ) {
-    super();
-    this.matchID = matchID;
-    this.playerX = playerX;
-    this.playerO = playerO;
-  }
 }

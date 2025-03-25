@@ -14,7 +14,13 @@ import {
 } from "class-validator";
 
 import { TicTacMatch } from "./TicTacMatch";
-import { ChainMatchMetadata, ChainMatchPlayerMetadata, GameStatus, PlayerSymbol } from "./types";
+import {
+  ChainMatchMetadata,
+  ChainMatchPlayerMetadata,
+  GameStatus,
+  MatchStatePlugin,
+  PlayerSymbol
+} from "./types";
 
 export class MatchStateLogOperation extends ChainCallDTO {
   @IsString()
@@ -37,8 +43,9 @@ export class MatchStateLogEntry extends ChainCallDTO {
   @IsNumber()
   turn: number;
 
+  @IsOptional()
   @IsString()
-  phase: string;
+  phase?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -55,14 +62,6 @@ export class MatchStateLogEntry extends ChainCallDTO {
   @ValidateNested()
   @Type(() => MatchStateLogOperation)
   patch?: MatchStateLogOperation[];
-}
-
-export class MatchStatePlugin extends ChainCallDTO {
-  @IsDefined()
-  data: any;
-
-  @IsOptional()
-  api?: any;
 }
 
 export class MatchStateContext extends ChainCallDTO {
@@ -91,11 +90,13 @@ export class MatchStateContext extends ChainCallDTO {
   @IsNumber()
   turn: number;
 
-  @IsNotEmpty()
-  phase: string;
+  @IsOptional()
+  @IsString()
+  phase?: string;
 
-  @IsNotEmpty()
-  _internal: string;
+  @IsOptional()
+  @IsString()
+  _internal?: string;
 
   @IsOptional()
   @Allow()
@@ -127,71 +128,6 @@ export class MatchStateContext extends ChainCallDTO {
   _random?: {
     seed: string | number;
   };
-
-  public serialize() {
-    const {
-      numPlayers,
-      playOrder,
-      playOrderPos,
-      activePlayers,
-      currentPlayer,
-      numMoves,
-      gameover,
-      turn,
-      phase,
-      _activePlayersMinMoves,
-      _activePlayersMaxMoves,
-      _prevActivePlayers,
-      _nextActivePlayers,
-      _random
-    } = this;
-
-    const _internal = JSON.stringify({
-      _activePlayersMinMoves,
-      _activePlayersMaxMoves,
-      _prevActivePlayers,
-      _nextActivePlayers,
-      _random
-    });
-
-    const data = {
-      numPlayers,
-      playOrder,
-      playOrderPos,
-      activePlayers,
-      currentPlayer,
-      numMoves,
-      gameover,
-      turn,
-      phase,
-      _internal
-    };
-
-    return serialize(data);
-  }
-
-  public deserialize<MatchStateContext>(
-    constructor: MatchStateContext,
-    object: string | Record<string, unknown> | Record<string, unknown>[]
-  ): MatchStateContext {
-    const matchContext = deserialize(MatchStateContext, object);
-
-    const {
-      _activePlayersMinMoves,
-      _activePlayersMaxMoves,
-      _prevActivePlayers,
-      _nextActivePlayers,
-      _random
-    } = JSON.parse(matchContext._internal);
-
-    matchContext._activePlayersMinMoves = _activePlayersMinMoves;
-    matchContext._activePlayersMaxMoves = _activePlayersMaxMoves;
-    matchContext._prevActivePlayers = _prevActivePlayers;
-    matchContext._nextActivePlayers = _nextActivePlayers;
-    matchContext._random = _random;
-
-    return matchContext as MatchStateContext;
-  }
 }
 
 // @JSONSchema({ description: "Extend this class with any custom game state" })
@@ -225,11 +161,18 @@ export class MatchGameState extends ChainCallDTO {
 }
 
 export class MatchState extends ChainCallDTO {
+  @IsOptional()
+  @IsNumber()
+  _stateID: number | null;
+
   @Type(() => MatchGameState)
   G: MatchGameState;
 
   @Type(() => MatchStateContext)
   ctx: MatchStateContext;
+
+  @IsDefined()
+  plugins: Record<string, MatchStatePlugin>;
 }
 
 export class MatchPlayerMetadata extends ChainCallDTO {

@@ -51,17 +51,19 @@ export class ChainMatchStateLogEntry extends ChainObject {
   @IsString()
   matchID: string;
 
+  @ChainKey({ position: 1 })
+  @IsNumber()
+  _stateID: number;
+
   @IsNotEmpty()
   action: unknown;
 
   @IsNumber()
-  _stateID: number;
-
-  @IsNumber()
   turn: number;
 
+  @IsOptional()
   @IsString()
-  phase: string;
+  phase?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -80,7 +82,15 @@ export class ChainMatchStateLogEntry extends ChainObject {
   patch?: ChainMatchStateLogOperation[];
 }
 
-export class ChainMatchStatePlugin extends ChainObject {
+export class MatchStatePlugin extends ChainObject {
+  @IsDefined()
+  data: any;
+
+  @IsOptional()
+  api?: any;
+}
+
+export class ChainMatchStatePlugins extends ChainObject {
   public static INDEX_KEY = "BGCMSP";
 
   @ChainKey({ position: 0 })
@@ -89,10 +99,7 @@ export class ChainMatchStatePlugin extends ChainObject {
   matchID: string;
 
   @IsDefined()
-  data: any;
-
-  @IsOptional()
-  api?: any;
+  plugins: Record<string, MatchStatePlugin>;
 }
 
 export class ChainMatchStateContext extends ChainObject {
@@ -127,11 +134,13 @@ export class ChainMatchStateContext extends ChainObject {
   @IsNumber()
   turn: number;
 
-  @IsNotEmpty()
-  phase: string;
+  @IsOptional()
+  @IsString()
+  phase?: string;
 
-  @IsNotEmpty()
-  _internal: string;
+  @IsOptional()
+  @IsString()
+  _internal?: string;
 
   @IsOptional()
   @Allow()
@@ -163,115 +172,22 @@ export class ChainMatchStateContext extends ChainObject {
   _random?: {
     seed: string | number;
   };
-
-  // public serialize() {
-  //   const {
-  //     numPlayers,
-  //     playOrder,
-  //     playOrderPos,
-  //     activePlayers,
-  //     currentPlayer,
-  //     numMoves,
-  //     gameover,
-  //     turn,
-  //     phase,
-  //     _activePlayersMinMoves,
-  //     _activePlayersMaxMoves,
-  //     _prevActivePlayers,
-  //     _nextActivePlayers,
-  //     _random
-  //   } = this;
-
-  //   const _internal = JSON.stringify({
-  //     _activePlayersMinMoves,
-  //     _activePlayersMaxMoves,
-  //     _prevActivePlayers,
-  //     _nextActivePlayers,
-  //     _random
-  //   });
-
-  //   const data = {
-  //     numPlayers,
-  //     playOrder,
-  //     playOrderPos,
-  //     activePlayers,
-  //     currentPlayer,
-  //     numMoves,
-  //     gameover,
-  //     turn,
-  //     phase,
-  //     _internal
-  //   };
-
-  //   return serialize(data);
-  // }
-
-  // public deserialize<MatchStateContext>(
-  //   constructor: MatchStateContext,
-  //   object: string | Record<string, unknown> | Record<string, unknown>[]
-  // ): MatchStateContext {
-  //   const matchContext = deserialize(MatchStateContext, object);
-
-  //   const {
-  //     _activePlayersMinMoves,
-  //     _activePlayersMaxMoves,
-  //     _prevActivePlayers,
-  //     _nextActivePlayers,
-  //     _random
-  //   } = JSON.parse(matchContext._internal);
-
-  //   matchContext._activePlayersMinMoves = _activePlayersMinMoves;
-  //   matchContext._activePlayersMaxMoves = _activePlayersMaxMoves;
-  //   matchContext._prevActivePlayers = _prevActivePlayers;
-  //   matchContext._nextActivePlayers = _nextActivePlayers;
-  //   matchContext._random = _random;
-
-  //   return matchContext as MatchStateContext;
-  // }
 }
-
-// @JSONSchema({ description: "Extend this class with any custom game state" })
-/**
- * @description
- *
- * Extend this class with custom properties to track state specific to
- * a turn-based game
- */
-// using implementation in ./TicTacMatch.ts
-// export class TicTacMatchGameState extends ChainObject {
-//   @ChainKey({ position: 0 })
-//   @IsNotEmpty()
-//   @IsString()
-//   matchID: string;
-
-//   @IsArray()
-//   @Type(() => String)
-//   board: (PlayerSymbol | null)[];
-
-//   @IsString()
-//   currentPlayer: PlayerSymbol;
-
-//   constructor() {
-//     super();
-//     this.board = Array(9).fill(null);
-//     this.currentPlayer = PlayerSymbol.X;
-//   }
-// }
 
 export class ChainMatchPlayerMetadata extends ChainObject {
   public static INDEX_KEY = "BGCMPM";
-  @ChainKey({ position: 0 })
-  @IsNotEmpty()
-  gameName: string;
 
-  @ChainKey({ position: 1 })
+  @ChainKey({ position: 0 })
   @IsNotEmpty()
   @IsString()
   matchID: string;
 
-  @ChainKey({ position: 2 })
+  @ChainKey({ position: 1 })
   @IsString()
   playerId: string;
+
+  @IsNotEmpty()
+  gameName: string;
 
   @IsOptional()
   @IsString()
@@ -295,12 +211,11 @@ export class ChainMatchMetadata extends ChainObject {
 
   @ChainKey({ position: 0 })
   @IsNotEmpty()
-  gameName: string;
-
-  @ChainKey({ position: 1 })
-  @IsNotEmpty()
   @IsString()
   matchID: string;
+
+  @IsNotEmpty()
+  gameName: string;
 
   @IsOptional()
   setupData?: any;

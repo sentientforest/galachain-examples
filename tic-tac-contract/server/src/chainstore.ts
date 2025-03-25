@@ -16,8 +16,11 @@ import {
   FetchMatchDto,
   FetchMatchesDto,
   FetchMatchesResDto,
-  FetchMatchIdsResDto
+  FetchMatchIdsResDto,
+  CreateMatchDto
 } from "./dtos";
+
+import { adminSigningKey } from "./identities";
 
 export interface ChainstoreConfig {
   apiUrl?: string;
@@ -25,6 +28,7 @@ export interface ChainstoreConfig {
   endpoints?: {
     createMatch?: string;
     setMatchState?: string;
+    setMatchMetadata?: string;
     fetchMatch?: string;
     fetchMatches?: string;
   };
@@ -43,6 +47,7 @@ export class Chainstore extends Async {
   private endpoints: {
     createMatch: string;
     setMatchState: string;
+    setMatchMetadata: string;
     fetchMatch: string;
     fetchMatches: string;
   };
@@ -51,10 +56,11 @@ export class Chainstore extends Async {
   constructor(config?: ChainstoreConfig) {
     super();
     this.apiUrl = config?.apiUrl ?? "http://localhost:3000";
-    this.contractPath = config?.contractPath ?? "/api/product/GameMatchContract";
+    this.contractPath = config?.contractPath ?? "/api/product/TicTacContract";
     this.endpoints = {
       createMatch: config?.endpoints?.createMatch ?? "CreateMatch",
       setMatchState: config?.endpoints?.setMatchState ?? "SetMatchState",
+      setMatchMetadata: config?.endpoints?.setMatchMetadata ?? "SetMatchMetadata",
       fetchMatch: config?.endpoints?.fetchMatch ?? "FetchMatch",
       fetchMatches: config?.endpoints?.fetchMatches ?? "FetchMatches"
     };
@@ -84,11 +90,61 @@ export class Chainstore extends Async {
     opts: StorageAPI.CreateMatchOpts
   ): Promise<void> {
     const { initialState, metadata } = opts;
+    const initialStateID = InitialStateKey(matchID);
 
-    // todo: optimize these into a single call on chain
-    await this.setState(InitialStateKey(matchID), initialState);
-    await this.setState(matchID, initialState);
-    await this.setMetadata(matchID, metadata);
+    console.log(`createMatch:`);
+    console.log(`initialState: ${JSON.stringify(initialState)}`);
+    console.log(`metadata: ${JSON.stringify(metadata)}`)
+
+    const { G, ctx, _stateID, plugins } = initialState;
+
+    const stateDto = await createValidDTO(MatchState, {
+      _stateID: _stateID,
+      G: plainToInstance(MatchGameState, G),
+      ctx: plainToInstance(MatchStateContext, ctx),
+      plugins: plugins as Record<string, MatchStatePlugin>
+    });
+
+    const matchPlayers: Record<number, MatchPlayerMetadata> = {};
+
+    for (const p in metadata.players) {
+      matchPlayers[p] = plainToInstance(MatchMetadata, metadata.players[p])
+    }
+
+    const metadataDto = await createValidDTO(MatchMetadata, {
+      ...metadata,
+      players: matchPlayers
+    });
+
+    const dto = (await createValidDTO(CreateMatchDto, {
+      matchID,
+      initialStateID,
+      state: stateDto,
+      metadata: metadataDto,
+      uniqueKey: `${matchID}-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+    })).signed(adminSigningKey());
+
+    return await this.chainRequest(matchID, async () => {
+
+      const url = `${this.apiUrl}${this.contractPath}/${this.endpoints.createMatch}`;
+      console.log(`createMatch request url: ${url}`);
+      console.log(`createMatch with data: ${dto.serialize()}`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: dto.serialize()
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.log(`createMatch request failed: ${error}`);
+        throw new Error(`Failed to create match ${matchID} on chain: ${error}`);
+      }
+
+      const data = await response.json();
+      console.log(`createMatch success: ${JSON.stringify(data)}`);
+    });
   }
 
   async fetch<O extends StorageAPI.FetchOpts>(
@@ -98,8 +154,16 @@ export class Chainstore extends Async {
     return this.chainRequest(matchID, async () => {
       const dto = new FetchMatchDto();
       dto.matchID = matchID;
+      dto.includeLog = log;
+      dto.includeState = state;
+      dto.includeMetadata = metadata;
+      dto.includeInitialState = initialState;
 
       const url = `${this.apiUrl}${this.contractPath}/${this.endpoints.fetchMatch}`;
+      console.log(`fetch: ${url}`);
+      console.log(
+        `fetch options: state? ${state}; log? ${log}; metadata? ${metadata}; initialState? ${initialState}`
+      );
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -107,10 +171,15 @@ export class Chainstore extends Async {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch match ${matchID} from chain`);
+        console.log(`fetch to ${url} failed.`);
+        const responseText = await response.text();
+        console.log(`response: ${responseText}`);
+        return {};
       }
 
       const chainRes = await response.json();
+
+      console.log(`fetch success: ${JSON.stringify(chainRes)}`);
 
       return chainRes.Data as StorageAPI.FetchResult<O>;
     });
@@ -126,35 +195,45 @@ export class Chainstore extends Async {
     state: State,
     deltalog?: LogEntry[]
   ): Promise<void> {
-    const { G, ctx } = state;
+    const { G, ctx, _stateID, plugins, _undo, _redo } = state;
     return await this.chainRequest(matchID, async () => {
       const stateDto = await createValidDTO(MatchState, {
+        _stateID: _stateID,
         G: plainToInstance(MatchGameState, G),
-        ctx: plainToInstance(MatchStateContext, ctx)
+        ctx: plainToInstance(MatchStateContext, ctx),
+        plugins: plugins as Record<string, MatchStatePlugin>
       });
 
       const deltalogDto: MatchStateLogEntry[] | undefined = deltalog ?
         deltalog.map((d) => plainToInstance(MatchStateLogEntry, d)) :
         deltalog;
 
-      const dto = await createValidDTO(MatchStateDto, {
+      const dto = (await createValidDTO(MatchStateDto, {
         matchID,
         state: stateDto,
         deltalog: deltalogDto,
         uniqueKey: `${matchID}-${Date.now()}-${Math.floor(Math.random() * 10000)}`
-      })
+      })).signed(adminSigningKey());
 
       const url = `${this.apiUrl}${this.contractPath}/${this.endpoints.setMatchState}`;
+      console.log(`setState request url: ${url}`);
+      console.log(`setState with data: ${dto.serialize()}`);
+
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: serialize(dto)
+        body: dto.serialize()
       });
 
       if (!response.ok) {
         const error = await response.text();
+        console.log(`setState request failed: ${error}`);
         throw new Error(`Failed to set state for match ${matchID} on chain: ${error}`);
       }
+
+      const data = await response.json();
+      console.log(`setState success: ${JSON.stringify(data)}`);
+
     });
   }
 
@@ -174,17 +253,21 @@ export class Chainstore extends Async {
         players: matchPlayers
       });
 
-      const dto = await createValidDTO(MatchStateDto, {
+      const dto = (await createValidDTO(MatchStateDto, {
         matchID,
         metadata: metadataDto,
         uniqueKey: `${matchID}-${Date.now()}-${Math.floor(Math.random() * 10000)}`
-      });
+      })).signed(adminSigningKey())
 
-      const url = `${this.apiUrl}${this.contractPath}/${this.endpoints.setMatchState}`;
+      const url = `${this.apiUrl}${this.contractPath}/${this.endpoints.setMatchMetadata}`;
+
+      console.log(`setMetadata request: ${url}`);
+      console.log(dto.serialize());
+
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: serialize(dto)
+        body: dto.serialize()
       });
 
       if (!response.ok) {
@@ -207,6 +290,9 @@ export class Chainstore extends Async {
     const dto = new FetchMatchesDto();
 
     const url = `${this.apiUrl}${this.contractPath}/${this.endpoints.fetchMatches}`;
+
+    console.log(`listMatches url: ${url}`);
+
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -218,6 +304,8 @@ export class Chainstore extends Async {
     }
 
     const { results } = await response.json();
+
+    console.log(`listMatches response: ${JSON.stringify(results)}`);
 
     return results;
   }

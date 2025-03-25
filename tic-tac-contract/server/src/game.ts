@@ -1,19 +1,23 @@
 import { Game, Move } from 'boardgame.io';
 
 export interface TicTacContractState {
-  cells: (string | null)[];
+  currentMove: number | null;
+  board: (string | null)[];
   winner: string | null;
 }
 
 const makeMove: Move<TicTacContractState> = ({ G, ctx }, id: number) => {
-  if (G.cells[id] !== null) return;
-  G.cells[id] = ctx.currentPlayer;
+  if (G.board[id] !== null) return;
+
+  G.board[id] = ctx.currentPlayer;
+  G.currentMove = id;
 };
 
 export const TicTacContract: Game<TicTacContractState> = {
   name: 'tic-tac-contract',
   setup: () => ({
-    cells: Array(9).fill(null),
+    currentMove: null,
+    board: Array(9).fill(null),
     winner: null,
   }),
 
@@ -33,12 +37,12 @@ export const TicTacContract: Game<TicTacContractState> = {
 
     for (let line of lines) {
       const [a, b, c] = line;
-      if (G.cells[a] !== null && G.cells[a] === G.cells[b] && G.cells[a] === G.cells[c]) {
+      if (G.board[a] !== null && G.board[a] === G.board[b] && G.board[a] === G.board[c]) {
         return { winner: ctx.currentPlayer };
       }
     }
 
-    if (G.cells.every(cell => cell !== null)) {
+    if (G.board.every(cell => cell !== null)) {
       return { draw: true };
     }
   },

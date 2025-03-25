@@ -2,7 +2,7 @@
   <div class="container">
     <h1>Tic Tac Toe</h1>
 
-    <div v-if="!matchId" class="start-section">
+    <div v-if="!matchID" class="start-section">
       <button @click="startNewMatch" class="start-button">Start New Game</button>
       <div class="join-section">
         <input v-model="joinMatchId" placeholder="Enter Game ID" class="game-id-input" />
@@ -12,13 +12,13 @@
 
     <div v-else class="game-section">
       <div class="game-info">
-        <p>Game ID: {{ matchId }}</p>
+        <p>Game ID: {{ matchID }}</p>
         <p>Current Player: {{ currentPlayer === '0' ? 'X' : 'O' }}</p>
       <p>You are: {{ currentSymbol }}</p>
       </div>
 
       <div class="board">
-        <div v-for="(cell, index) in cells"
+        <div v-for="(cell, index) in board"
              :key="index"
              class="cell"
              :class="{ 'cell-playable': isPlayable(index) }"
@@ -102,20 +102,10 @@ type TicTacContractClient = ReturnType<typeof Client<TicTacContractState, Record
 const serverBaseUrl = import.meta.env.VITE_PROJECT_API ?? 'http://localhost:8000';
 const projectId = import.meta.env.VITE_PROJECT_ID ?? 'tic-tac-contract';
 
-const createClient = (matchId: string, playerId: string, dto?: string): TicTacContractClient => {
-  return Client<TicTacContractState, Record<string, unknown>>({
-    game: TicTacContract,
-    matchID: matchId,
-    playerID: playerId,
-    debug: false,
-    multiplayer: SocketIO({ server: serverBaseUrl })
-  });
-};
-
-const matchId = ref('');
+const matchID = ref('');
 const joinMatchId = ref('');
 const currentPlayer = ref<string>('0');
-const cells = ref<(string | null)[]>(Array(9).fill(null));
+const board = ref<(string | null)[]>(Array(9).fill(null));
 const winner = ref<string | null>(null);
 const isDraw = ref(false);
 const playerID = ref<string>('0');
@@ -127,11 +117,18 @@ const currentSymbol = computed(() => playerID.value === '0' ? 'X' : 'O');
 let unsubscribe: Function | undefined;
 let boardgameState: string | undefined;
 
-const initializeClient = (matchId: string, initialPlayerId: string, dto?: string) => {
+const initializeClient = (matchID: string, initialPlayerId: string, dto?: string) => {
   playerID.value = initialPlayerId;
-  console.log('Initializing client with:', { matchId, initialPlayerId });
+  console.log('Initializing client with:', { matchID, initialPlayerId });
 
-  client.value = createClient(matchId, initialPlayerId, dto);
+  client.value = Client<TicTacContractState, Record<string, unknown>>({
+    game: TicTacContract,
+    matchID: matchID,
+    playerID: playerID.value,
+
+    debug: false,
+    multiplayer: SocketIO({ server: serverBaseUrl })
+  });
 
   console.log('Client initialized:', {
     playerID: client.value.playerID,
@@ -141,14 +138,14 @@ const initializeClient = (matchId: string, initialPlayerId: string, dto?: string
   unsubscribe = client.value.subscribe((state: ClientState | null) => {
     if (state) {
       console.log('Game State Update:', {
-        cells: state.G.cells,
+        board: state.G.board,
         currentPlayer: state.ctx.currentPlayer,
         winner: state.ctx.gameover?.winner ?? null,
         draw: state.ctx.gameover?.draw,
         clientPlayerID: client.value?.playerID
       });
 
-      cells.value = state.G.cells;
+      board.value = state.G.board;
       currentPlayer.value = state.ctx.currentPlayer;
       winner.value = state.ctx.gameover?.winner ?? null;
       isDraw.value = (state.ctx.gameover?.draw) ?? false;
@@ -195,22 +192,22 @@ const startNewMatch = async () => {
     const response = await fetch(createGameUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ matchID: dto.matchId, numPlayers: 2, setupData: { dto: dto } })
+      body: JSON.stringify({ matchID: dto.matchID, numPlayers: 2, setupData: { dto: dto } })
     });
 
     const data = await response.json();
     console.log(`create response: ${JSON.stringify(data)}`);
 
-    matchId.value = dto.matchId;
+    matchID.value = data.matchID;
 
-    initializeClient(dto.matchId, '0');
+    initializeClient(matchID.value, '0');
   } catch (error) {
     console.error('Failed to start new game:', error);
   }
 };
 
 const isPlayable = (index: number): boolean => {
-  return !cells.value[index] &&
+  return !board.value[index] &&
          !winner.value &&
          !isDraw.value &&
          playerID.value === currentPlayer.value;
@@ -219,24 +216,13 @@ const isPlayable = (index: number): boolean => {
 const makeMove = async (index: number) => {
   if (!client.value || !isPlayable(index)) return;
 
-  let dto: string;
-
-  try {
-    const signedDto = await confirmMakeMove(index);
-    dto = JSON.stringify(signedDto);
-  } catch (e) {
-    // todo: error messaging
-    console.log(`Failed to confirm dto signging or stringify signed to: ${e}`);
-    return;
-  }
-
-  client.value.moves.makeMove(index, dto);
+  client.value.moves.makeMove(index);
 };
 
 const resetGame = () => {
-  matchId.value = '';
+  matchID.value = '';
   currentPlayer.value = '0';
-  cells.value = Array(9).fill(null);
+  board.value = Array(9).fill(null);
   winner.value = null;
   isDraw.value = false;
   playerID.value = '0';
@@ -252,7 +238,7 @@ const resetGame = () => {
 
 const joinMatch = () => {
   if (!joinMatchId.value) return;
-  matchId.value = joinMatchId.value;
+  matchID.value = joinMatchId.value;
   initializeClient(joinMatchId.value, '1');
   joinMatchId.value = '';
 };
@@ -261,12 +247,12 @@ async function confirmCreateMatch() {
   // todo: for now, assume match creator is always "X"
   // this could be extended to allow for choice between "X" and "O"
 
-  const matchId: string = `${projectId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const matchID: string = `${projectId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
   const dto: ICreateMatchDto = {
-    matchId: matchId,
+    matchID: matchID,
     playerX: walletAddress.value,
-    uniqueKey: matchId
+    uniqueKey: matchID
   }
 
   if (typeof boardgameState === "string") {
@@ -285,7 +271,7 @@ async function confirmJoinGame() {
   // and joiner is "O"
   // this could be extended to allow for choice between "X" and "O"
   const dto: IJoinMatchDto = {
-    matchId: matchId.value,
+    matchID: matchID.value,
     playerO: walletAddress.value,
     uniqueKey: `${projectId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`
   }
@@ -303,7 +289,7 @@ async function confirmJoinGame() {
 
 async function confirmMakeMove(position: number) {
   const dto: IMakeMoveDto = {
-    matchId: matchId.value,
+    matchID: matchID.value,
     position: position,
     uniqueKey: `${projectId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`
   }
