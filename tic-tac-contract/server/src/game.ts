@@ -1,7 +1,9 @@
 import { Game, Move } from 'boardgame.io';
+import { PlayerSymbol } from './TicTacMatch';
 
 export interface TicTacContractState {
   currentMove: number | null;
+  currentPlayer: string;
   board: (string | null)[];
   winner: string | null;
 }
@@ -11,11 +13,14 @@ const makeMove: Move<TicTacContractState> = ({ G, ctx }, id: number) => {
 
   G.board[id] = ctx.currentPlayer;
   G.currentMove = id;
+
+  G.currentPlayer = G.currentPlayer === PlayerSymbol.X ? PlayerSymbol.O : PlayerSymbol.X;
 };
 
 export const TicTacContract: Game<TicTacContractState> = {
   name: 'tic-tac-contract',
   setup: () => ({
+    currentPlayer: PlayerSymbol.X,
     currentMove: null,
     board: Array(9).fill(null),
     winner: null,

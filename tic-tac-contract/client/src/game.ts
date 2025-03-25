@@ -1,4 +1,5 @@
 import { Game, Move } from 'boardgame.io';
+import { PlayerSymbol } from './dtos';
 
 export interface TicTacContractState {
   playerX?: string | undefined;
@@ -19,6 +20,7 @@ export const TicTacContract: Game<TicTacContractState> = {
   name: 'tic-tac-contract',
   setup: ({ ctx, ...plugins }, setupData: TicTacContractState) => ({
     currentMove: null,
+    currentPlayer: PlayerSymbol.X,
     board: Array(9).fill(null),
     winner: null,
   }),
