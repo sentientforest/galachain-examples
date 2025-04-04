@@ -9,7 +9,7 @@
     "build:client": "vite build --outDir dist/client",
     "build:server": "vite build --outDir dist/server --ssr src/entry-server.tsx",
     "preview": "NODE_ENV=production node server",
-    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint": "eslint server.js src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
