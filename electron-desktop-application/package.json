@@ -1,0 +1,35 @@
+{
+  "name": "electron-desktop-application",
+  "version": "1.0.0",
+  "description": "Modern Electron Desktop Application",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite --force",
+    "build": "tsc && vite build && electron-builder",
+    "lint": "eslint src --ext ts,tsx",
+    "start": "electron .",
+    "test": "jest",
+    "package": "electron-builder"
+  },
+  "author": "",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@types/react": "^18.2.67",
+    "@types/react-dom": "^18.2.22",
+    "@typescript-eslint/eslint-plugin": "^7.3.1",
+    "@typescript-eslint/parser": "^7.3.1",
+    "@vitejs/plugin-react": "^4.2.1",
+    "electron": "^29.1.4",
+    "electron-builder": "^24.13.3",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.2",
+    "vite": "^5.1.6",
+    "vite-plugin-electron": "^0.28.2"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}
