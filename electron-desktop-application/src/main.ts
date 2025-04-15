@@ -1,11 +1,32 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import { KeyManager } from './main/keyManager';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit();
 }
+
+// Initialize key manager
+const keyManager = new KeyManager();
+
+// IPC handlers for key management
+ipcMain.handle('generateKeys', async () => {
+  return await keyManager.generateNewKeys();
+});
+
+ipcMain.handle('loadKeys', async () => {
+  return await keyManager.loadKeys();
+});
+
+ipcMain.handle('deleteKeys', async () => {
+  return await keyManager.deleteKeys();
+});
+
+ipcMain.handle('registerUser', async (_, apiUrl: string, adminPrivateKey: string) => {
+  return await keyManager.registerUser(apiUrl, adminPrivateKey);
+});
 
 const createWindow = () => {
   // Create the browser window.
@@ -14,6 +35,8 @@ const createWindow = () => {
     height: 600,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
     },
   });
 
