@@ -13,13 +13,54 @@ import { ChainUser } from './ChainUser';
 //   publicKey: string;
 // }
 
+interface AdminKeyInfo {
+  project: string;
+  name: string;
+  publicKey?: string;
+  privateKey: string;
+}
+
 export class KeyManager {
+  private homeDir: string;
   private userDataPath: string;
   private keyFilePath: string;
-
+  private gcKeysDir: string;
+  
   constructor() {
+    this.homeDir = app.getPath('home');
     this.userDataPath = app.getPath('userData');
     this.keyFilePath = path.join(this.userDataPath, 'user-keys.json');
+    this.gcKeysDir = path.join(this.homeDir, '.gc-keys');
+  }
+
+  /**
+   * List all available admin keys in the gc-keys directory
+   */
+  async listAdminKeys(): Promise<AdminKeyInfo[]> {
+    if (!fs.existsSync(this.gcKeysDir)) {
+      console.log(`gcKeysDir not found: ${this.gcKeysDir}`)
+      return [];
+    }
+
+    const projects = fs.readdirSync(this.gcKeysDir);
+    const adminKeys: AdminKeyInfo[] = [];
+
+    for (const project of projects) {
+      const projectPath = path.join(this.gcKeysDir, project);
+      console.log(`Checking project: ${projectPath}`);
+      if (!fs.statSync(projectPath).isDirectory()) continue;
+
+      const keyFiles = fs.readdirSync(projectPath);
+      const privateKeyFiles = keyFiles.filter(f => f.endsWith('-key'));
+
+      for (const privateKeyFile of privateKeyFiles) {
+        const privateKey = fs.readFileSync(path.join(projectPath, privateKeyFile), 'utf8').trim();
+        const name = privateKeyFile;
+        adminKeys.push({ project, name, privateKey });
+      }
+    }
+
+    return adminKeys;
   }
 
   /**

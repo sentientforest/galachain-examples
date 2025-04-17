@@ -15,8 +15,14 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
       <div class="registration">
         <h3>User Registration</h3>
+        <div class="admin-keys" id="adminKeys">
+          <h4>Available Admin Keys</h4>
+          <p>Loading admin keys...</p>
+        </div>
         <input type="text" id="apiUrl" placeholder="API URL">
-        <input type="password" id="adminKey" placeholder="Admin Private Key">
+        <select id="adminKey">
+          <option value="">Select an admin key...</option>
+        </select>
         <button id="registerBtn">Register User</button>
       </div>
       <pre id="output"></pre>
@@ -52,12 +58,32 @@ document.addEventListener('DOMContentLoaded', () => {
     button:hover {
       background: #45a049;
     }
-    input {
+    input, select {
       display: block;
       margin: 10px 0;
       padding: 8px;
       width: 100%;
       max-width: 300px;
+    }
+    .admin-keys {
+      background: #f5f5f5;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .admin-keys ul {
+      list-style: none;
+      padding: 0;
+      margin: 10px 0;
+    }
+    .admin-keys li {
+      margin: 10px 0;
+      padding: 10px;
+      background: white;
+      border-radius: 4px;
+    }
+    .error {
+      color: #d32f2f;
     }
     pre {
       background: #f8f8f8;
@@ -76,15 +102,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const deleteBtn = document.getElementById('deleteBtn');
   const registerBtn = document.getElementById('registerBtn');
   const apiUrlInput = document.getElementById('apiUrl') as HTMLInputElement;
-  const adminKeyInput = document.getElementById('adminKey') as HTMLInputElement;
+  const adminKeySelect = document.getElementById('adminKey') as HTMLSelectElement;
+  const adminKeysDiv = document.getElementById('adminKeys');
 
   // Helper to update the UI
-  const updateKeyInfo = (keys: { publicKey: string; privateKey: string } | null) => {
+  const updateKeyInfo = (keys: { name?: string; publicKey?: string; privateKey: string } | null) => {
     if (!keyInfo) return;
     if (keys) {
       keyInfo.innerHTML = `
-        <p><strong>Public Key:</strong> ${keys.publicKey.slice(0, 20)}...</p>
-        <p><strong>Private Key:</strong> ${keys.privateKey.slice(0, 20)}...</p>
+        <p><strong>Selected Key:</strong> ${keys.name ?? keys.publicKey}</p>
       `;
     } else {
       keyInfo.innerHTML = '<p>No keys loaded</p>';
@@ -130,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   registerBtn?.addEventListener('click', async () => {
     const apiUrl = apiUrlInput?.value;
-    const adminKey = adminKeyInput?.value;
+    const adminKey = adminKeySelect?.value;
 
     if (!apiUrl || !adminKey) {
       showOutput('Please provide both API URL and admin private key.');
@@ -145,7 +171,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Initial load
+  // Load admin keys
+  const loadAdminKeys = async () => {
+    try {
+      const adminKeys = await window.keyManager.listAdminKeys();
+      if (!adminKeysDiv || !adminKeySelect) return;
+
+      if (adminKeys.length === 0) {
+        adminKeysDiv.innerHTML = `
+          <h4>Available Admin Keys</h4>
+          <p>No admin keys found in ~/gc-keys directory.</p>
+          <p>Please create admin keys for your local chaincode development first.</p>
+        `;
+        return;
+      }
+
+      adminKeysDiv.innerHTML = `
+        <h4>Available Admin Keys</h4>
+        <p>Found ${adminKeys.length} key(s):</p>
+        <ul>
+          ${adminKeys.map(key => `
+            <li>
+              <strong>${key.project}</strong><br>
+              <small>Key: ${key.name}</small>
+            </li>
+          `).join('')}
+        </ul>
+      `;
+
+      // Update select options
+      adminKeySelect.innerHTML = `
+        <option value="">Select an admin key...</option>
+        ${adminKeys.map(key => `
+          <option value="${key.privateKey}">${key.name} - ${key.project}</option>
+        `).join('')}
+      `;
+    } catch (error) {
+      if (!adminKeysDiv) return;
+      adminKeysDiv.innerHTML = `
+        <h4>Available Admin Keys</h4>
+        <p class="error">Error loading admin keys: ${error}</p>
+      `;
+    }
+  };
+
+  // Initial loads
   window.keyManager.loadKeys().then(updateKeyInfo);
+  loadAdminKeys();
 });
 
