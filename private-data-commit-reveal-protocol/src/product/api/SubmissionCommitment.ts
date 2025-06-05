@@ -1,12 +1,4 @@
-import {
-  BigNumberIsPositive,
-  BigNumberProperty,
-  ChainKey,
-  ChainObject,
-  IsUserRef,
-  UserRef
-} from "@gala-chain/api";
-import BigNumber from "bignumber.js";
+import { ChainKey, ChainObject, UserRef, asValidUserRef } from "@gala-chain/api";
 import { IsNotEmpty, IsString } from "class-validator";
 
 export interface ISubmissionCommitment {
@@ -21,12 +13,14 @@ export class SubmissionCommitment extends ChainObject {
 
   public static SEPARATOR = "/";
 
-  constructor(data: ISubmissionCommitment) {
+  constructor(args: unknown) {
     super();
-    this.collection = data.collection;
-    this.owner = data.owner;
-    this.hash = data.hash;
-    this.nonce = data.nonce;
+    // ChainObject.deserialize() requires supporting unknown args
+    const data = args as ISubmissionCommitment;
+    this.collection = data?.collection ?? "";
+    this.owner = data?.owner ?? asValidUserRef("service|null");
+    this.hash = data?.hash ?? "";
+    this.nonce = data?.nonce ?? "";
   }
 
   @ChainKey({ position: 0 })

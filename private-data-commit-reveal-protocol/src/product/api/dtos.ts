@@ -63,14 +63,38 @@ export class CommitSubmissionResDto extends ChainCallDTO {
 }
 
 export interface IWithdrawSubmissionDto {
+  collection: string;
+  owner: UserRef;
   hash: string;
+  nonce: string;
   uniqueKey: string;
 }
 
 export class WithdrawSubmissionDto extends SubmitCallDTO {
   constructor(data: IWithdrawSubmissionDto) {
     super();
+    this.collection = data.collection;
+    this.owner = data.owner;
+    this.hash = data.hash;
+    this.nonce = data.nonce;
+    this.uniqueKey = data.uniqueKey;
   }
+
+  @IsNotEmpty()
+  @IsString()
+  collection: string;
+
+  @IsNotEmpty()
+  @IsString()
+  owner: UserRef;
+
+  @IsNotEmpty()
+  @IsHash("sha256")
+  hash: string;
+
+  @IsNotEmpty()
+  @IsString()
+  nonce: string;
 }
 
 export class WithdrawSubmissionResDto extends ChainCallDTO {
@@ -95,6 +119,7 @@ export interface IRevealSubmissionDto {
   collection: string;
   item: string;
   commitmentNonce: string;
+  commitmentHash: string;
   salt: string;
   bid: BigNumber;
   uniqueKey: string;
@@ -106,11 +131,38 @@ export class RevealSubmissionDto extends SubmitCallDTO {
     this.collection = data.collection;
     this.item = data.item;
     this.commitmentNonce = data.commitmentNonce;
+    this.commitmentHash = data.commitmentHash;
     this.salt = data.salt;
     this.bid = data.bid;
     this.uniqueKey = data.uniqueKey;
   }
 
+  @IsNotEmpty()
+  @IsString()
+  public collection: string;
+
+  @IsNotEmpty()
+  @IsString()
+  public item: string;
+
+  @IsNotEmpty()
+  @IsString()
+  public commitmentNonce: string;
+
+  @IsNotEmpty()
+  @IsString()
+  public commitmentHash: string;
+
+  @IsNotEmpty()
+  @IsString()
+  public salt: string;
+
+  @BigNumberIsPositive()
+  @BigNumberProperty()
+  public bid: BigNumber;
+}
+
+export class RevealSubmissionResDto extends ChainCallDTO {
   @IsNotEmpty()
   @IsString()
   public collection: string;
@@ -137,10 +189,4 @@ export class RevealSubmissionDto extends SubmitCallDTO {
   @BigNumberIsPositive()
   @BigNumberProperty()
   public bid: BigNumber;
-}
-
-export class RevealSubmissionResDto extends ChainCallDTO {
-  constructor() {
-    super();
-  }
 }

@@ -4,7 +4,8 @@ import {
   ChainKey,
   ChainObject,
   IsUserRef,
-  UserRef
+  UserRef,
+  asValidUserRef
 } from "@gala-chain/api";
 import { sha256 } from "@noble/hashes/sha2";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils";
@@ -26,15 +27,15 @@ export interface ISubmission {
 export class Submission extends ChainObject {
   public static INDEX_KEY = "PDCRS"; // Private data commit reveal Submission
 
-  constructor(data: ISubmission) {
+  constructor(data?: ISubmission) {
     super();
-    this.collection = data.collection;
-    this.item = data.item;
-    this.owner = data.owner;
-    this.bid = data.bid;
-    this.commitmentNonce = data.commitmentNonce;
-    this.commitmentHash = data.commitmentHash;
-    this.salt = data.salt;
+    this.collection = data?.collection ?? "";
+    this.item = data?.item ?? "";
+    this.owner = data?.owner ?? asValidUserRef("service|null");
+    this.bid = data?.bid ?? new BigNumber("");
+    this.commitmentNonce = data?.commitmentNonce ?? "";
+    this.commitmentHash = data?.commitmentHash ?? "";
+    this.salt = data?.salt ?? "";
   }
 
   @ChainKey({ position: 0 })
