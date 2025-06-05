@@ -1,0 +1,146 @@
+import {
+  BigNumberIsPositive,
+  BigNumberProperty,
+  ChainCallDTO,
+  IsUserRef,
+  SubmitCallDTO,
+  UserRef
+} from "@gala-chain/api";
+import BigNumber from "bignumber.js";
+import { Type } from "class-transformer";
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  ArrayNotEmpty,
+  IsHash,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateNested
+} from "class-validator";
+import { JSONSchema } from "class-validator-jsonschema";
+
+export interface ICommitSubmissionDto {
+  collection: string;
+  hash: string;
+  uniqueKey: string;
+}
+
+export class CommitSubmissionDto extends SubmitCallDTO {
+  @IsNotEmpty()
+  @IsString()
+  collection: string;
+
+  @IsNotEmpty()
+  @IsHash("sha256")
+  hash: string;
+
+  constructor(data: ICommitSubmissionDto) {
+    super();
+    this.collection = data.collection;
+    this.hash = data.hash;
+    this.uniqueKey = data.uniqueKey;
+  }
+}
+
+export class CommitSubmissionResDto extends ChainCallDTO {
+  @IsNotEmpty()
+  @IsString()
+  collection: string;
+
+  @IsNotEmpty()
+  @IsString()
+  owner: UserRef;
+
+  @IsNotEmpty()
+  @IsString()
+  hash: string;
+
+  @IsNotEmpty()
+  @IsString()
+  nonce: string;
+}
+
+export interface IWithdrawSubmissionDto {
+  hash: string;
+  uniqueKey: string;
+}
+
+export class WithdrawSubmissionDto extends SubmitCallDTO {
+  constructor(data: IWithdrawSubmissionDto) {
+    super();
+  }
+}
+
+export class WithdrawSubmissionResDto extends ChainCallDTO {
+  @IsNotEmpty()
+  @IsString()
+  collection: string;
+
+  @IsNotEmpty()
+  @IsString()
+  owner: UserRef;
+
+  @IsNotEmpty()
+  @IsString()
+  hash: string;
+
+  @IsNotEmpty()
+  @IsString()
+  nonce: string;
+}
+
+export interface IRevealSubmissionDto {
+  collection: string;
+  item: string;
+  commitmentNonce: string;
+  salt: string;
+  bid: BigNumber;
+  uniqueKey: string;
+}
+
+export class RevealSubmissionDto extends SubmitCallDTO {
+  constructor(data: IRevealSubmissionDto) {
+    super();
+    this.collection = data.collection;
+    this.item = data.item;
+    this.commitmentNonce = data.commitmentNonce;
+    this.salt = data.salt;
+    this.bid = data.bid;
+    this.uniqueKey = data.uniqueKey;
+  }
+
+  @IsNotEmpty()
+  @IsString()
+  public collection: string;
+
+  @IsNotEmpty()
+  @IsString()
+  public item: string;
+
+  @IsUserRef()
+  public owner: UserRef;
+
+  @IsNotEmpty()
+  @IsString()
+  public commitmentNonce: string;
+
+  @IsNotEmpty()
+  @IsString()
+  public commitmentHash: string;
+
+  @IsNotEmpty()
+  @IsString()
+  public salt: string;
+
+  @BigNumberIsPositive()
+  @BigNumberProperty()
+  public bid: BigNumber;
+}
+
+export class RevealSubmissionResDto extends ChainCallDTO {
+  constructor() {
+    super();
+  }
+}
