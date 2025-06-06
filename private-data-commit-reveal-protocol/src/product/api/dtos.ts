@@ -4,21 +4,11 @@ import {
   ChainCallDTO,
   IsUserRef,
   SubmitCallDTO,
-  UserRef
+  UserRef,
+  asValidUserRef
 } from "@gala-chain/api";
 import BigNumber from "bignumber.js";
-import { Type } from "class-transformer";
-import {
-  ArrayMaxSize,
-  ArrayMinSize,
-  ArrayNotEmpty,
-  IsHash,
-  IsNotEmpty,
-  IsNumber,
-  IsOptional,
-  IsString,
-  ValidateNested
-} from "class-validator";
+import { IsHash, IsNotEmpty, IsString } from "class-validator";
 import { JSONSchema } from "class-validator-jsonschema";
 
 export interface ICommitSubmissionDto {
@@ -38,9 +28,9 @@ export class CommitSubmissionDto extends SubmitCallDTO {
 
   constructor(data: ICommitSubmissionDto) {
     super();
-    this.collection = data.collection;
-    this.hash = data.hash;
-    this.uniqueKey = data.uniqueKey;
+    this.collection = data?.collection ?? "";
+    this.hash = data?.hash ?? "";
+    this.uniqueKey = data?.uniqueKey ?? "";
   }
 }
 
@@ -73,11 +63,11 @@ export interface IWithdrawSubmissionDto {
 export class WithdrawSubmissionDto extends SubmitCallDTO {
   constructor(data: IWithdrawSubmissionDto) {
     super();
-    this.collection = data.collection;
-    this.owner = data.owner;
-    this.hash = data.hash;
-    this.nonce = data.nonce;
-    this.uniqueKey = data.uniqueKey;
+    this.collection = data?.collection ?? "";
+    this.owner = data?.owner ?? asValidUserRef("service|null");
+    this.hash = data?.hash ?? "";
+    this.nonce = data?.nonce ?? "";
+    this.uniqueKey = data?.uniqueKey ?? "";
   }
 
   @IsNotEmpty()
@@ -128,13 +118,13 @@ export interface IRevealSubmissionDto {
 export class RevealSubmissionDto extends SubmitCallDTO {
   constructor(data: IRevealSubmissionDto) {
     super();
-    this.collection = data.collection;
-    this.item = data.item;
-    this.commitmentNonce = data.commitmentNonce;
-    this.commitmentHash = data.commitmentHash;
-    this.salt = data.salt;
-    this.bid = data.bid;
-    this.uniqueKey = data.uniqueKey;
+    this.collection = data?.collection ?? "";
+    this.item = data?.item ?? "";
+    this.commitmentNonce = data?.commitmentNonce ?? "";
+    this.commitmentHash = data?.commitmentHash ?? "";
+    this.salt = data?.salt ?? "";
+    this.bid = data?.bid ?? new BigNumber("");
+    this.uniqueKey = data?.uniqueKey ?? "";
   }
 
   @IsNotEmpty()
