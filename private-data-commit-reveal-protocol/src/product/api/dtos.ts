@@ -26,8 +26,9 @@ export class CommitSubmissionDto extends SubmitCallDTO {
   @IsHash("sha256")
   hash: string;
 
-  constructor(data: ICommitSubmissionDto) {
+  constructor(args: unknown) {
     super();
+    const data: ICommitSubmissionDto = args as ICommitSubmissionDto;
     this.collection = data?.collection ?? "";
     this.hash = data?.hash ?? "";
     this.uniqueKey = data?.uniqueKey ?? "";
@@ -116,8 +117,9 @@ export interface IRevealSubmissionDto {
 }
 
 export class RevealSubmissionDto extends SubmitCallDTO {
-  constructor(data: IRevealSubmissionDto) {
+  constructor(args: unknown) {
     super();
+    const data: IRevealSubmissionDto = args as IRevealSubmissionDto;
     this.collection = data?.collection ?? "";
     this.item = data?.item ?? "";
     this.commitmentNonce = data?.commitmentNonce ?? "";
@@ -152,7 +154,29 @@ export class RevealSubmissionDto extends SubmitCallDTO {
   public bid: BigNumber;
 }
 
+export interface IRevealSubmissionResDto {
+  collection: string;
+  item: string;
+  owner: UserRef;
+  commitmentNonce: string;
+  commitmentHash: string;
+  salt: string;
+  bid: BigNumber;
+}
+
 export class RevealSubmissionResDto extends ChainCallDTO {
+  constructor(args: unknown) {
+    super();
+    const data = args as IRevealSubmissionResDto;
+    this.collection = data.collection;
+    this.item = data.item;
+    this.owner = data.owner;
+    this.commitmentNonce = data.commitmentNonce;
+    this.commitmentHash = data.commitmentHash;
+    this.salt = data.salt;
+    this.bid = data.bid;
+  }
+
   @IsNotEmpty()
   @IsString()
   public collection: string;
@@ -161,7 +185,8 @@ export class RevealSubmissionResDto extends ChainCallDTO {
   @IsString()
   public item: string;
 
-  @IsUserRef()
+  @IsNotEmpty()
+  @IsString()
   public owner: UserRef;
 
   @IsNotEmpty()
