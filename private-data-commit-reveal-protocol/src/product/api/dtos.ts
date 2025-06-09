@@ -154,29 +154,7 @@ export class RevealSubmissionDto extends SubmitCallDTO {
   public bid: BigNumber;
 }
 
-export interface IRevealSubmissionResDto {
-  collection: string;
-  item: string;
-  owner: UserRef;
-  commitmentNonce: string;
-  commitmentHash: string;
-  salt: string;
-  bid: BigNumber;
-}
-
 export class RevealSubmissionResDto extends ChainCallDTO {
-  constructor(args: unknown) {
-    super();
-    const data = args as IRevealSubmissionResDto;
-    this.collection = data.collection;
-    this.item = data.item;
-    this.owner = data.owner;
-    this.commitmentNonce = data.commitmentNonce;
-    this.commitmentHash = data.commitmentHash;
-    this.salt = data.salt;
-    this.bid = data.bid;
-  }
-
   @IsNotEmpty()
   @IsString()
   public collection: string;

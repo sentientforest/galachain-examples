@@ -43,7 +43,7 @@ export async function revealSubmission(
   await deleteChainObject(ctx, commitment);
   await putChainObject(ctx, submission);
 
-  const response = new RevealSubmissionResDto({
+  const response: RevealSubmissionResDto = await createValidDTO(RevealSubmissionResDto, {
     collection,
     item,
     owner,

@@ -109,7 +109,7 @@ describe("Product contract", () => {
       uniqueKey: randomUniqueKey()
     }).signed(user.privateKey);
 
-    const expectedResponse = new RevealSubmissionResDto({
+    const expectedResponse = plainToInstance(RevealSubmissionResDto, {
       collection,
       item,
       owner,
@@ -121,7 +121,7 @@ describe("Product contract", () => {
 
     const response = await client.product.RevealSubmission(dto);
 
-    expect(response).toEqual(transactionSuccess(expectedResponse));
+    expect(plainToInstance(RevealSubmissionResDto, response.Data)).toEqual(expectedResponse);
   });
 });
 
